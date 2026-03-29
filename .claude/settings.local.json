@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Read(//usr/local/bin/**)",
+      "Read(//usr/bin/**)",
+      "Bash(echo $PATH)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/Rasmus/AppData/Roaming/**)",
+      "Read(//c//**)",
+      "Read(//c/Users/Rasmus/AppData/Local/Programs//**)",
+      "Read(//c/Users/Rasmus/AppData/Local/**)",
+      "Read(//c/Users/Rasmus/**)",
+      "Read(//c/ProgramData/chocolatey/bin/**)",
+      "Bash(cmd.exe /c \"where node 2>&1\")",
+      "Bash(cmd.exe /c \"where npm 2>&1\")",
+      "Bash(powershell.exe -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source; Get-Command npm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(cmd.exe /c \"node --version && npm --version\")",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" install)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" run build)",
+      "Bash(PATH=\"/c/Program Files/nodejs:$PATH\" \"/c/Program Files/nodejs/npm.cmd\" run build)",
+      "Bash(npm run:*)",
+      "WebSearch",
+      "WebFetch(domain:www.raidbots.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:www.warcraftlogs.com)",
+      "WebFetch(domain:forums.combatlogforums.com)",
+      "Skill(schedule)",
+      "Skill(schedule:*)"
+    ]
+  }
+}

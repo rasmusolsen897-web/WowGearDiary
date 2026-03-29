@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Whooplol — Frost Mage Upgrade Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --frost-blue: #69ccff;
+  --epic-purple: #a335ee;
+  --rare-blue: #0070dd;
+  --legendary-orange: #ff8000;
+  --uncommon-green: #1eff00;
+  --bg: #0d0d18;
+  --card: #1a1a2e;
+  --card-hover: #21213d;
+  --text: #c8d6e5;
+  --text-muted: #7a8ba0;
+  --border: #2a2a4a;
+  --border-bright: #3a3a5a;
+  --success: #4cff91;
+  --warning: #ffd700;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+#root { min-height: 100vh; }
+.font-display { font-family: 'Rajdhani', sans-serif; letter-spacing: 0.03em; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--frost-blue); }
+
+/* Layout */
+.app-container { max-width: 1400px; margin: 0 auto; padding: 0 20px 40px; }
+.main-grid { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+.section { margin-top: 28px; }
+
+/* Cards */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+
+/* Section title */
+.section-title {
+  font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--frost-blue);
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+}
+.section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(to right, var(--border-bright), transparent); }
+
+/* Badges */
+.badge {
+  display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 4px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+}
+.badge-tier { background: rgba(163,53,238,0.25); color: var(--epic-purple); border: 1px solid rgba(163,53,238,0.5); }
+.badge-catalyst { background: rgba(255,128,0,0.2); color: var(--legendary-orange); border: 1px solid rgba(255,128,0,0.45); }
+.badge-priority-high { background: rgba(105,204,255,0.15); color: var(--frost-blue); border: 1px solid rgba(105,204,255,0.4); }
+.badge-priority-medium { background: rgba(0,112,221,0.2); color: var(--rare-blue); border: 1px solid rgba(0,112,221,0.4); }
+.badge-priority-low { background: rgba(85,85,119,0.3); color: var(--text-muted); border: 1px solid rgba(85,85,119,0.5); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+  border-radius: 6px; border: 1px solid var(--border); background: transparent;
+  color: var(--text-muted); font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+}
+.btn:hover { border-color: var(--frost-blue); color: var(--frost-blue); }
+.btn.active { background: rgba(105,204,255,0.15); border-color: var(--frost-blue); color: var(--frost-blue); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-active-orange { background: rgba(255,128,0,0.15); border-color: var(--legendary-orange); color: var(--legendary-orange); }
+.btn-active-purple { background: rgba(163,53,238,0.15); border-color: var(--epic-purple); color: var(--epic-purple); }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0 16px; }
+.tab {
+  padding: 10px 20px; border: none; background: transparent; color: var(--text-muted);
+  font-size: 14px; font-weight: 600; font-family: 'Rajdhani', sans-serif; letter-spacing: 0.05em;
+  cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: all 0.15s; text-transform: uppercase;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--frost-blue); border-bottom-color: var(--frost-blue); }
+
+/* ilvl colors */
+.ilvl-legendary { color: var(--legendary-orange); font-weight: 700; }
+.ilvl-epic { color: var(--epic-purple); font-weight: 600; }
+.ilvl-rare { color: var(--rare-blue); font-weight: 600; }
+.ilvl-uncommon { color: var(--uncommon-green); }
+.ilvl-common { color: var(--text-muted); }
+
+/* Table */
+.sim-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sim-table th {
+  text-align: left; padding: 8px 12px; color: var(--text-muted); font-size: 11px;
+  font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.sim-table td { padding: 9px 12px; border-bottom: 1px solid rgba(42,42,74,0.6); vertical-align: middle; }
+.sim-table tr:last-child td { border-bottom: none; }
+.sim-table tbody tr { transition: background 0.12s; }
+.sim-table tbody tr:hover { background: rgba(105,204,255,0.05); }
+.sim-table tbody tr.row-hl { background: rgba(105,204,255,0.08); }
+
+/* DPS bar */
+.dps-wrap { display: flex; align-items: center; gap: 8px; }
+.dps-bar { height: 4px; border-radius: 2px; min-width: 4px; flex-shrink: 0; }
+
+/* Gear slots */
+.gear-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-radius: 6px; border: 1px solid transparent; cursor: pointer; transition: all 0.12s;
+}
+.gear-row:hover { background: var(--card-hover); border-color: var(--border-bright); }
+.gear-row.active { background: rgba(105,204,255,0.1); border-color: var(--frost-blue); }
+.gear-row.has-tier { border-left: 3px solid var(--epic-purple); }
+.gear-row.active.has-tier { border-left: 3px solid var(--frost-blue); }
+.slot-name { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; width: 64px; flex-shrink: 0; }
+.slot-item { font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Tier slots */
+.tier-slots { display: flex; gap: 8px; flex-wrap: wrap; }
+.tier-box {
+  flex: 1; min-width: 80px; padding: 10px 8px; border-radius: 6px;
+  border: 1px solid var(--border); text-align: center; font-size: 12px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tier-box.has-tier {
+  background: rgba(163,53,238,0.15); border-color: var(--epic-purple); color: var(--epic-purple);
+  box-shadow: 0 0 10px rgba(163,53,238,0.2);
+}
+.tier-box.no-tier { color: var(--text-muted); background: rgba(255,255,255,0.02); }
+
+/* Boss/Dungeon cards */
+.boss-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.boss-card { padding: 14px 16px; }
+.boss-card.ph { border-left: 3px solid var(--frost-blue); }
+.boss-card.pm { border-left: 3px solid var(--rare-blue); }
+.boss-card.pl { border-left: 3px solid #555577; }
+.boss-name { font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.boss-drops { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.boss-drop { font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.boss-drop::before { content: '▸'; color: var(--text-muted); font-size: 10px; }
+
+.dungeon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.dungeon-card { padding: 14px 16px; }
+.dungeon-name { font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 700; color: var(--frost-blue); margin-bottom: 6px; }
+.dungeon-drops { list-style: none; display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
+.dungeon-drop { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.dungeon-drop::before { content: '▸'; font-size: 10px; }
+
+/* Game plan */
+.gameplan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 700px) { .gameplan-grid { grid-template-columns: 1fr; } }
+.gameplan-card { padding: 16px; }
+.gameplan-header { font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.gameplan-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.gameplan-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.4; }
+.gp-bullet { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+
+/* Filter bar */
+.filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.filter-div { width: 1px; height: 24px; background: var(--border); align-self: center; }
+
+/* Slot banner */
+.slot-banner { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(105,204,255,0.08); border: 1px solid rgba(105,204,255,0.25); border-radius: 6px; font-size: 13px; color: var(--frost-blue); margin: 0 16px 10px; }
+.slot-banner button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; }
+.slot-banner button:hover { color: var(--text); }
+
+/* Catalyst pips */
+.charge-pip { width: 18px; height: 18px; border-radius: 50%; background: rgba(255,128,0,0.25); border: 1px solid rgba(255,128,0,0.6); box-shadow: 0 0 6px rgba(255,128,0,0.3); }
+.charge-pip.empty { background: rgba(255,255,255,0.04); border-color: var(--border); box-shadow: none; }
+
+.no-results { padding: 32px; text-align: center; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import { createElement as h, useState, Fragment } from 'https://esm.sh/react@18'
+import { createRoot } from 'https://esm.sh/react-dom@18/client'
+
+// ─── DATA ──────────────────────────────────────────────────────────────────
+const data = {"character":{"name":"Whooplol","class":"Frost Mage","race":"Troll","server":"EU/Tarren Mill","level":90,"patch":"12.0.1 Midnight","avgIlvl":255.3,"catalystCharges":8},"gear":[{"slot":"Head","item":"Silvermoon Sunspire","ilvl":246,"tierSlot":true,"hasTier":false},{"slot":"Neck","item":"Amani Totemstring","ilvl":246,"tierSlot":false,"hasTier":false},{"slot":"Shoulder","item":"Mantle of Dark Devotion","ilvl":250,"tierSlot":true,"hasTier":false},{"slot":"Back","item":"Defiant Defender's Drape","ilvl":253,"tierSlot":false,"hasTier":false},{"slot":"Chest","item":"Voidbender Robe","ilvl":263,"tierSlot":true,"hasTier":false},{"slot":"Wrist","item":"Sprawling Wristroots","ilvl":250,"tierSlot":false,"hasTier":false},{"slot":"Hands","item":"Vilehex Bonds","ilvl":243,"tierSlot":true,"hasTier":false},{"slot":"Waist","item":"Hara'ti Defender's Sash","ilvl":246,"tierSlot":false,"hasTier":false},{"slot":"Legs","item":"Voidbreaker's Britches","ilvl":263,"tierSlot":true,"hasTier":true},{"slot":"Feet","item":"Nightprey Stalkers","ilvl":263,"tierSlot":false,"hasTier":false},{"slot":"Ring 1","item":"Bond of Light","ilvl":250,"tierSlot":false,"hasTier":false},{"slot":"Ring 2","item":"Occlusion of Void","ilvl":250,"tierSlot":false,"hasTier":false},{"slot":"Trinket 1","item":"Void-Reaper's Libram","ilvl":259,"tierSlot":false,"hasTier":false},{"slot":"Trinket 2","item":"Crucible of Erratic Energies","ilvl":246,"tierSlot":false,"hasTier":false},{"slot":"Weapon","item":"Aln'hara Cane (Q5)","ilvl":285,"tierSlot":false,"hasTier":false}],"raidSim":[{"item":"Gaze of the Alnseer","slot":"Trinket","ilvl":263,"dps":2.5,"source":"Chimaerus the Undreamt God (H)","tier":false,"catalyst":false},{"item":"Vaelgor's Final Stare","slot":"Trinket","ilvl":266,"dps":2.3,"source":"Vaelgor & Ezzorak (H)","tier":false,"catalyst":false},{"item":"Voidbreaker's Veil","slot":"Head","ilvl":269,"dps":2.2,"source":"Catalyst","tier":true,"catalyst":true},{"item":"Voidbreaker's Gloves","slot":"Hands","ilvl":266,"dps":2.1,"source":"Catalyst","tier":true,"catalyst":true},{"item":"Voidbreaker's Veil","slot":"Head","ilvl":266,"dps":2.1,"source":"Midnight Falls (H)","tier":true,"catalyst":false},{"item":"Voidbreaker's Gloves","slot":"Hands","ilvl":263,"dps":2.1,"source":"Vorasius (H)","tier":true,"catalyst":false},{"item":"Locus-Walker's Ribbon","slot":"Trinket","ilvl":269,"dps":1.9,"source":"Crown of the Cosmos (H)","tier":false,"catalyst":false},{"item":"Voidbreaker's Robe","slot":"Chest","ilvl":269,"dps":1.6,"source":"Catalyst","tier":true,"catalyst":true},{"item":"Amulet of the Abyssal Hymn","slot":"Neck","ilvl":269,"dps":1.5,"source":"Midnight Falls (H)","tier":false,"catalyst":false},{"item":"Despotic Raiment","slot":"Chest","ilvl":263,"dps":0.3,"source":"Fallen-King Salhadaar (H)","tier":false,"catalyst":false},{"item":"Dream-Scorched Striders","slot":"Feet","ilvl":263,"dps":0.3,"source":"Chimaerus the Undreamt God (H)","tier":false,"catalyst":false},{"item":"Voidbreaker's Encryption","slot":"Back","ilvl":259,"dps":0.3,"source":"Catalyst","tier":false,"catalyst":true},{"item":"Imperator's Banner","slot":"Back","ilvl":259,"dps":0.2,"source":"Imperator Averzian (H)","tier":false,"catalyst":false},{"item":"Voidbreaker's Sage Cord","slot":"Waist","ilvl":259,"dps":0.2,"source":"Catalyst","tier":false,"catalyst":true},{"item":"Echoing Void Mantle","slot":"Shoulder","ilvl":266,"dps":0.2,"source":"Belo'ren, Child of Al'ar (H)","tier":false,"catalyst":false},{"item":"Voidbreaker's Bracers","slot":"Wrist","ilvl":263,"dps":0.2,"source":"Catalyst","tier":false,"catalyst":true},{"item":"Voidbreaker's Britches","slot":"Legs","ilvl":266,"dps":0.2,"source":"Vaelgor & Ezzorak (H)","tier":true,"catalyst":false},{"item":"Slippers of the Midnight Flame","slot":"Feet","ilvl":266,"dps":0.1,"source":"Vaelgor & Ezzorak (H)","tier":false,"catalyst":false},{"item":"Endless March Waistwrap","slot":"Waist","ilvl":259,"dps":0.1,"source":"Imperator Averzian (H)","tier":false,"catalyst":false}],"mythicSim":[{"item":"Pendant of Aching Grief","slot":"Neck","ilvl":266,"dps":0.2,"source":"Windrunner Spire +10","dungeon":"Windrunner Spire","catalyst":false},{"item":"Voidbreaker's Bracers","slot":"Wrist","ilvl":266,"dps":0.2,"source":"Pit of Saron +10","dungeon":"Pit of Saron","catalyst":true},{"item":"Clasp of Compliance","slot":"Waist","ilvl":266,"dps":0.2,"source":"Magisters' Terrace +10","dungeon":"Magisters' Terrace","catalyst":false},{"item":"Leyline Leggings","slot":"Legs","ilvl":266,"dps":0.2,"source":"Nexus-Point Xenas +10","dungeon":"Nexus-Point Xenas","catalyst":false},{"item":"Wristguards of Subterranean Moss","slot":"Wrist","ilvl":266,"dps":0.2,"source":"Pit of Saron +10","dungeon":"Pit of Saron","catalyst":false},{"item":"Voidbreaker's Britches","slot":"Legs","ilvl":266,"dps":0.2,"source":"Windrunner Spire +10","dungeon":"Windrunner Spire","catalyst":true},{"item":"Voidbender Robe","slot":"Chest","ilvl":266,"dps":0.2,"source":"Seat of the Triumvirate +10","dungeon":"Seat of the Triumvirate","catalyst":false},{"item":"Eredath Seal of Nobility","slot":"Finger","ilvl":266,"dps":0.2,"source":"Seat of the Triumvirate +10","dungeon":"Seat of the Triumvirate","catalyst":false}],"raidBossPriority":[{"boss":"Chimaerus the Undreamt God","priority":"high","drops":["Gaze of the Alnseer (Trinket +2.5%)","Dream-Scorched Striders (Feet +0.3%)"]},{"boss":"Midnight Falls","priority":"high","drops":["Voidbreaker's Veil (Head T +2.1%)","Amulet of the Abyssal Hymn (Neck +1.5%)"]},{"boss":"Vorasius","priority":"high","drops":["Voidbreaker's Gloves (Hands T +2.1%)"]},{"boss":"Vaelgor & Ezzorak","priority":"high","drops":["Vaelgor's Final Stare (Trinket +2.3%)","Voidbreaker's Britches (Legs T +0.2%)"]},{"boss":"Crown of the Cosmos","priority":"medium","drops":["Locus-Walker's Ribbon (Trinket +1.9%)"]},{"boss":"Fallen-King Salhadaar","priority":"low","drops":["Despotic Raiment (Chest +0.3%)"]},{"boss":"Belo'ren, Child of Al'ar","priority":"low","drops":["Echoing Void Mantle (Shoulder +0.2%)"]},{"boss":"Imperator Averzian","priority":"low","drops":["Imperator's Banner (Back +0.2%)","Endless March Waistwrap (Waist +0.1%)"]}],"dungeonPriority":[{"dungeon":"Pit of Saron","drops":2,"note":"2 wrist drops"},{"dungeon":"Seat of the Triumvirate","drops":2,"note":"Chest + ring"},{"dungeon":"Windrunner Spire","drops":2,"note":"Neck + tier legs (CAT)"},{"dungeon":"Magisters' Terrace","drops":1,"note":"Waist"},{"dungeon":"Nexus-Point Xenas","drops":1,"note":"Legs"}],"gamePlan":{"thisWeek":["Pit of Saron, Seat, Windrunner first","Push +8-10 for 272 vault","Fill 3 vault slots minimum","Do NOT Catalyst yet"],"thursday":["Chimaerus: Trinket (+2.5%)","Midnight Falls: Head T (+2.1%)","Vorasius: Hands T (+2.1%)","Bonus roll on trinket boss"],"afterRaid":["Vault pick: highest sim value","No tier drop? Catalyst best piece","Goal: 2-piece bonus active","Re-sim with new gear"]}}
+
+// ─── HELPERS ───────────────────────────────────────────────────────────────
+function ilvlClass(ilvl) {
+  if (ilvl >= 272) return 'ilvl-legendary'
+  if (ilvl >= 263) return 'ilvl-epic'
+  if (ilvl >= 250) return 'ilvl-rare'
+  if (ilvl >= 232) return 'ilvl-uncommon'
+  return 'ilvl-common'
+}
+function dpsColor(dps) {
+  if (dps >= 2) return 'var(--success)'
+  if (dps >= 1) return 'var(--warning)'
+  return 'var(--text-muted)'
+}
+function dpsBarBg(dps) {
+  if (dps >= 2) return 'var(--success)'
+  if (dps >= 1) return 'var(--warning)'
+  return 'var(--text-muted)'
+}
+function normalizeSlot(s) {
+  if (!s) return ''
+  if (s.startsWith('Trinket')) return 'Trinket'
+  if (s.startsWith('Ring') || s === 'Finger') return 'Ring'
+  return s
+}
+function extractDps(str) {
+  const m = str.match(/\+(\d+\.\d+)%/)
+  return m ? parseFloat(m[1]) : null
+}
+
+// ─── COMPONENTS ────────────────────────────────────────────────────────────
+
+function CharacterHeader({ character: c }) {
+  const pips = Array.from({ length: 8 }, (_, i) => i < c.catalystCharges)
+  return h('header', {
+    style: {
+      background: 'linear-gradient(135deg,#111128 0%,#1a1a35 60%,#0d1520 100%)',
+      borderBottom: '1px solid var(--border)', padding: '24px 0 20px', marginBottom: 4
+    }
+  },
+    h('div', { style: { display:'flex', alignItems:'flex-start', gap:24, flexWrap:'wrap' } },
+      h('div', {
+        style: {
+          width:72, height:72, borderRadius:8, flexShrink:0,
+          background:'linear-gradient(135deg,#1a2a40,#0d1520)',
+          border:'2px solid var(--frost-blue)',
+          boxShadow:'0 0 16px rgba(105,204,255,0.3)',
+          display:'flex', alignItems:'center', justifyContent:'center', fontSize:32
+        }
+      }, '🧊'),
+      h('div', { style: { flex:1, minWidth:200 } },
+        h('div', { style: { display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', marginBottom:4 } },
+          h('h1', {
+            className:'font-display',
+            style: { fontSize:32, fontWeight:700, color:'var(--frost-blue)', textShadow:'0 0 20px rgba(105,204,255,0.4)', letterSpacing:'0.04em' }
+          }, c.name),
+          h('span', {
+            className:'badge',
+            style: { background:'rgba(105,204,255,0.12)', border:'1px solid rgba(105,204,255,0.4)', color:'var(--frost-blue)', fontSize:12 }
+          }, c.class)
+        ),
+        h('div', { style: { display:'flex', flexWrap:'wrap', gap:'6px 20px', color:'var(--text-muted)', fontSize:13 } },
+          h('span', null, c.race),
+          h('span', { style:{color:'var(--border-bright)'} }, '·'),
+          h('span', null, c.server),
+          h('span', { style:{color:'var(--border-bright)'} }, '·'),
+          h('span', null, `Lvl ${c.level}`),
+          h('span', { style:{color:'var(--border-bright)'} }, '·'),
+          h('span', null, c.patch)
+        )
+      ),
+      h('div', { style: { display:'flex', gap:20, flexWrap:'wrap', alignItems:'flex-start' } },
+        h('div', {
+          style: { background:'rgba(255,255,255,0.04)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 16px', textAlign:'center', minWidth:90 }
+        },
+          h('div', { style: { fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 } }, 'Avg iLvl'),
+          h('div', { style: { fontSize:24, fontWeight:700, fontFamily:'Rajdhani,sans-serif', color:'var(--frost-blue)' } }, c.avgIlvl)
+        ),
+        h('div', {
+          style: { background:'rgba(255,128,0,0.08)', border:'1px solid rgba(255,128,0,0.3)', borderRadius:8, padding:'10px 14px', minWidth:130 }
+        },
+          h('div', { style: { fontSize:11, color:'var(--legendary-orange)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8 } }, 'Catalyst Charges'),
+          h('div', { style: { display:'flex', gap:5, alignItems:'center', flexWrap:'wrap' } },
+            ...pips.map((filled, i) => h('div', { key:i, className:`charge-pip${filled ? '' : ' empty'}` })),
+            h('span', { style: { fontSize:13, fontWeight:700, color:'var(--legendary-orange)', marginLeft:4 } }, `${c.catalystCharges}/8`)
+          )
+        )
+      )
+    )
+  )
+}
+
+const TIER_SLOTS = ['Head','Shoulder','Chest','Hands','Legs']
+
+function TierProgress({ gear }) {
+  const tierMap = {}
+  for (const item of gear) if (item.tierSlot) tierMap[item.slot] = item.hasTier
+  const count = TIER_SLOTS.filter(s => tierMap[s]).length
+  const bonusLabel = count >= 4 ? '4pc ACTIVE' : count >= 2 ? '2pc ACTIVE — need 2 more for 4pc' : `Need ${2 - count} more for 2pc bonus`
+  const bonusColor = count >= 4 ? 'var(--legendary-orange)' : count >= 2 ? 'var(--success)' : 'var(--text-muted)'
+  return h('div', { className:'card', style:{display:'flex',flexDirection:'column',gap:12} },
+    h('div', { style:{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8} },
+      h('div', { style:{display:'flex',alignItems:'center',gap:10} },
+        h('span', { className:'font-display', style:{fontSize:15,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',color:'var(--epic-purple)'} }, 'Tier Set'),
+        h('span', { style:{fontFamily:'Rajdhani,sans-serif',fontSize:22,fontWeight:700,color:count>=2?'var(--epic-purple)':'var(--text-muted)'} }, `${count}/5`)
+      ),
+      h('span', { style:{fontSize:12,color:bonusColor,fontWeight:600} }, bonusLabel)
+    ),
+    h('div', { className:'tier-slots' },
+      ...TIER_SLOTS.map(slot =>
+        h('div', { key:slot, className:`tier-box ${tierMap[slot]?'has-tier':'no-tier'}` },
+          tierMap[slot] ? h('div', { style:{fontSize:16,marginBottom:2} }, '✦') : null,
+          slot
+        )
+      )
+    )
+  )
+}
+
+function GearSlots({ gear, selectedSlot, onSlotClick }) {
+  return h('div', { className:'card', style:{padding:'12px 8px'} },
+    h('div', { style:{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.1em',padding:'0 12px 10px',borderBottom:'1px solid var(--border)',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'center'} },
+      'Gear Slots',
+      selectedSlot && h('button', {
+        onClick: () => onSlotClick(selectedSlot),
+        style:{background:'none',border:'none',color:'var(--frost-blue)',cursor:'pointer',fontSize:11,fontWeight:600,letterSpacing:'0.04em',textTransform:'uppercase'}
+      }, 'Clear ×')
+    ),
+    h('div', { style:{display:'flex',flexDirection:'column',gap:2} },
+      ...gear.map(item => {
+        const isActive = selectedSlot === item.slot
+        return h('div', {
+          key: item.slot,
+          className: `gear-row${isActive?' active':''}${item.hasTier?' has-tier':''}`,
+          onClick: () => onSlotClick(item.slot),
+          title: `Filter by: ${item.slot}`
+        },
+          h('span', { className:'slot-name' }, item.slot),
+          h('span', { className:'slot-item', style:{color:item.hasTier?'var(--epic-purple)':'var(--text)'} }, item.item),
+          h('span', { className:`slot-item ${ilvlClass(item.ilvl)}`, style:{flex:'none',fontWeight:700,fontSize:12} }, item.ilvl),
+          item.tierSlot && h('span', { style:{fontSize:12,opacity:item.hasTier?1:0.3} }, item.hasTier?'✦':'◇')
+        )
+      })
+    )
+  )
+}
+
+function SimTable({ raidSim, mythicSim, activeTab, onTabChange, selectedSlot, onClearSlot, typeFilter, onTypeFilter, raidOnly, onRaidOnly, showCatalyst, onShowCatalyst }) {
+  const rawData = activeTab === 'raid' ? raidSim : mythicSim
+  const maxDps = Math.max(...rawData.map(r => r.dps))
+  const isRaid = activeTab === 'raid'
+
+  let filtered = rawData
+  if (selectedSlot) {
+    const ns = normalizeSlot(selectedSlot)
+    filtered = filtered.filter(r => normalizeSlot(r.slot) === ns)
+  }
+  if (typeFilter === 'tier') filtered = filtered.filter(r => r.tier)
+  else if (typeFilter === 'trinket') filtered = filtered.filter(r => normalizeSlot(r.slot) === 'Trinket')
+  if (raidOnly && isRaid) filtered = filtered.filter(r => !r.catalyst)
+  if (!showCatalyst) filtered = filtered.filter(r => !r.catalyst)
+
+  return h('div', { className:'card', style:{padding:0,overflow:'hidden'} },
+    h('div', { className:'tabs' },
+      h('button', { className:`tab${activeTab==='raid'?' active':''}`, onClick:()=>onTabChange('raid') }, '⚔ Heroic Raid Sim'),
+      h('button', { className:`tab${activeTab==='mythic'?' active':''}`, onClick:()=>onTabChange('mythic') }, '🗝 Mythic+ Sim')
+    ),
+    h('div', { className:'filter-bar' },
+      h('div', { style:{display:'flex',gap:4} },
+        ...[{k:'all',l:'All'},{k:'tier',l:'✦ Tier'},{k:'trinket',l:'◉ Trinkets'}].map(f =>
+          h('button', {
+            key:f.k,
+            className:`btn btn-sm${typeFilter===f.k ? (f.k==='tier'?' btn-active-purple':' active') : ''}`,
+            onClick:()=>onTypeFilter(f.k)
+          }, f.l)
+        )
+      ),
+      h('div', { className:'filter-div' }),
+      isRaid && h('button', {
+        className:`btn btn-sm${raidOnly?' active':''}`,
+        onClick:()=>onRaidOnly(v=>!v)
+      }, 'Raid Drops Only'),
+      h('button', {
+        className:`btn btn-sm${showCatalyst?' btn-active-orange':''}`,
+        onClick:()=>onShowCatalyst(v=>!v)
+      }, '🔥 Catalyst'),
+      h('span', { style:{marginLeft:'auto',fontSize:12,color:'var(--text-muted)'} }, `${filtered.length} item${filtered.length!==1?'s':''}`)
+    ),
+    selectedSlot && h('div', { style:{padding:'0 16px 10px'} },
+      h('div', { className:'slot-banner' },
+        h('span', null, 'Filtering by: ', h('strong', null, selectedSlot)),
+        h('button', { onClick:onClearSlot }, '×')
+      )
+    ),
+    h('div', { style:{overflowX:'auto'} },
+      filtered.length === 0
+        ? h('div', { className:'no-results' }, 'No items match the current filters.')
+        : h('table', { className:'sim-table' },
+            h('thead', null, h('tr', null,
+              h('th', null, '#'),
+              h('th', null, 'Item'),
+              h('th', null, 'Slot'),
+              h('th', null, 'iLvl'),
+              h('th', null, '+DPS%'),
+              h('th', null, 'Source'),
+              !isRaid && h('th', null, 'Dungeon'),
+              h('th', null, 'Tags')
+            )),
+            h('tbody', null,
+              ...filtered.map((row, i) => {
+                const ns = normalizeSlot(selectedSlot)
+                const isHl = selectedSlot && normalizeSlot(row.slot) === ns
+                const barW = Math.max(6, (row.dps / maxDps) * 72)
+                return h('tr', { key:i, className:isHl?'row-hl':'' },
+                  h('td', { style:{color:'var(--text-muted)',fontSize:12,width:28} }, i+1),
+                  h('td', { style:{fontWeight:500,maxWidth:200} }, row.item),
+                  h('td', { style:{color:'var(--text-muted)',whiteSpace:'nowrap'} }, row.slot),
+                  h('td', null, h('span', { className:ilvlClass(row.ilvl), style:{fontWeight:700} }, row.ilvl)),
+                  h('td', null,
+                    h('div', { className:'dps-wrap' },
+                      h('div', { className:'dps-bar', style:{width:barW,background:dpsBarBg(row.dps)} }),
+                      h('span', { style:{fontWeight:700,fontSize:13,color:dpsColor(row.dps),whiteSpace:'nowrap'} }, `+${row.dps.toFixed(1)}%`)
+                    )
+                  ),
+                  h('td', { style:{color:'var(--text-muted)',fontSize:12,maxWidth:180} }, row.source),
+                  !isRaid && h('td', { style:{color:'var(--text-muted)',fontSize:12,whiteSpace:'nowrap'} }, row.dungeon),
+                  h('td', null,
+                    h('div', { style:{display:'flex',gap:4} },
+                      row.tier && h('span', { className:'badge badge-tier' }, 'Tier'),
+                      row.catalyst && h('span', { className:'badge badge-catalyst' }, 'CAT')
+                    )
+                  )
+                )
+              })
+            )
+          )
+    )
+  )
+}
+
+function RaidBossPriority({ bosses }) {
+  const pcls = { high:'ph', medium:'pm', low:'pl' }
+  const pbcls = { high:'badge-priority-high', medium:'badge-priority-medium', low:'badge-priority-low' }
+  return h('div', { className:'boss-grid' },
+    ...bosses.map(boss =>
+      h('div', { key:boss.boss, className:`card boss-card ${pcls[boss.priority]}` },
+        h('div', { className:'boss-name' },
+          h('span', null, boss.boss),
+          h('span', { className:`badge ${pbcls[boss.priority]}` }, boss.priority.toUpperCase())
+        ),
+        h('ul', { className:'boss-drops' },
+          ...boss.drops.map((drop, i) => {
+            const dps = extractDps(drop)
+            const label = drop.replace(/\s*\+\d+\.\d+%/, '')
+            return h('li', { key:i, className:'boss-drop' },
+              h('span', { style:{flex:1} }, label),
+              dps && h('span', { style:{color:dpsColor(dps),fontWeight:700,fontSize:11,marginLeft:'auto',paddingLeft:8,whiteSpace:'nowrap'} }, `+${dps.toFixed(1)}%`)
+            )
+          })
+        )
+      )
+    )
+  )
+}
+
+function DungeonPriority({ dungeons, mythicSim }) {
+  const byDungeon = {}
+  for (const item of mythicSim) {
+    if (!byDungeon[item.dungeon]) byDungeon[item.dungeon] = []
+    byDungeon[item.dungeon].push(item)
+  }
+  return h('div', { className:'dungeon-grid' },
+    ...dungeons.map((d, rank) => {
+      const items = byDungeon[d.dungeon] || []
+      return h('div', { key:d.dungeon, className:'card dungeon-card' },
+        h('div', { style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4} },
+          h('div', { className:'dungeon-name' }, d.dungeon),
+          h('span', {
+            style:{background:'rgba(105,204,255,0.12)',border:'1px solid rgba(105,204,255,0.3)',borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:700,color:'var(--frost-blue)'}
+          }, `#${rank+1}`)
+        ),
+        h('div', { style:{fontSize:12,color:'var(--text-muted)',marginBottom:8} }, d.note),
+        items.length > 0 && h('ul', { className:'dungeon-drops' },
+          ...items.map((item, i) =>
+            h('li', { key:i, className:'dungeon-drop' },
+              h('span', { style:{flex:1,color:'var(--text)'} }, item.item),
+              item.catalyst && h('span', { className:'badge badge-catalyst', style:{fontSize:10} }, 'CAT'),
+              h('span', { style:{fontWeight:700,color:'var(--rare-blue)',fontSize:11} }, item.ilvl)
+            )
+          )
+        )
+      )
+    })
+  )
+}
+
+const GP_COLS = [
+  { key:'thisWeek', label:'This Week', color:'var(--frost-blue)', icon:'📅' },
+  { key:'thursday', label:'Thursday Raid', color:'var(--epic-purple)', icon:'⚔' },
+  { key:'afterRaid', label:'After Raid', color:'var(--legendary-orange)', icon:'✔' },
+]
+
+function GamePlan({ gamePlan }) {
+  return h('div', { className:'gameplan-grid' },
+    ...GP_COLS.map(col =>
+      h('div', { key:col.key, className:'card gameplan-card' },
+        h('div', { className:'gameplan-header', style:{color:col.color} }, `${col.icon} ${col.label}`),
+        h('ul', { className:'gameplan-list' },
+          ...gamePlan[col.key].map((item, i) =>
+            h('li', { key:i, className:'gameplan-item' },
+              h('div', { className:'gp-bullet', style:{background:col.color,opacity:0.8} }),
+              h('span', null, item)
+            )
+          )
+        )
+      )
+    )
+  )
+}
+
+// ─── APP ───────────────────────────────────────────────────────────────────
+function App() {
+  const [activeTab, setActiveTab] = useState('raid')
+  const [selectedSlot, setSelectedSlot] = useState(null)
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [raidOnly, setRaidOnly] = useState(false)
+  const [showCatalyst, setShowCatalyst] = useState(true)
+
+  function handleSlotClick(slot) {
+    setSelectedSlot(prev => prev === slot ? null : slot)
+  }
+
+  return h('div', { className:'app-container' },
+    h(CharacterHeader, { character:data.character }),
+    h('div', { className:'section' }, h(TierProgress, { gear:data.gear })),
+    h('div', { className:'section main-grid' },
+      h(GearSlots, { gear:data.gear, selectedSlot, onSlotClick:handleSlotClick }),
+      h(SimTable, {
+        raidSim:data.raidSim, mythicSim:data.mythicSim,
+        activeTab, onTabChange:setActiveTab,
+        selectedSlot, onClearSlot:()=>setSelectedSlot(null),
+        typeFilter, onTypeFilter:setTypeFilter,
+        raidOnly, onRaidOnly:setRaidOnly,
+        showCatalyst, onShowCatalyst:setShowCatalyst,
+      })
+    ),
+    h('div', { className:'section' },
+      h('p', { className:'section-title' }, 'Raid Boss Priority'),
+      h(RaidBossPriority, { bosses:data.raidBossPriority })
+    ),
+    h('div', { className:'section' },
+      h('p', { className:'section-title' }, 'M+ Dungeon Targeting'),
+      h(DungeonPriority, { dungeons:data.dungeonPriority, mythicSim:data.mythicSim })
+    ),
+    h('div', { className:'section' },
+      h('p', { className:'section-title' }, 'Weekly Game Plan'),
+      h(GamePlan, { gamePlan:data.gamePlan })
+    )
+  )
+}
+
+createRoot(document.getElementById('root')).render(h(App, null))
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{
+  "character": {
+    "name": "Whooplol",
+    "class": "Frost Mage",
+    "race": "Troll",
+    "server": "EU/Tarren Mill",
+    "level": 90,
+    "patch": "12.0.1 Midnight",
+    "avgIlvl": 255.3,
+    "catalystCharges": 8
+  },
+  "gear": [
+    {"slot":"Head","item":"Silvermoon Sunspire","ilvl":246,"tierSlot":true,"hasTier":false},
+    {"slot":"Neck","item":"Amani Totemstring","ilvl":246,"tierSlot":false,"hasTier":false},
+    {"slot":"Shoulder","item":"Mantle of Dark Devotion","ilvl":250,"tierSlot":true,"hasTier":false},
+    {"slot":"Back","item":"Defiant Defender's Drape","ilvl":253,"tierSlot":false,"hasTier":false},
+    {"slot":"Chest","item":"Voidbender Robe","ilvl":263,"tierSlot":true,"hasTier":false},
+    {"slot":"Wrist","item":"Sprawling Wristroots","ilvl":250,"tierSlot":false,"hasTier":false},
+    {"slot":"Hands","item":"Vilehex Bonds","ilvl":243,"tierSlot":true,"hasTier":false},
+    {"slot":"Waist","item":"Hara'ti Defender's Sash","ilvl":246,"tierSlot":false,"hasTier":false},
+    {"slot":"Legs","item":"Voidbreaker's Britches","ilvl":263,"tierSlot":true,"hasTier":true},
+    {"slot":"Feet","item":"Nightprey Stalkers","ilvl":263,"tierSlot":false,"hasTier":false},
+    {"slot":"Ring 1","item":"Bond of Light","ilvl":250,"tierSlot":false,"hasTier":false},
+    {"slot":"Ring 2","item":"Occlusion of Void","ilvl":250,"tierSlot":false,"hasTier":false},
+    {"slot":"Trinket 1","item":"Void-Reaper's Libram","ilvl":259,"tierSlot":false,"hasTier":false},
+    {"slot":"Trinket 2","item":"Crucible of Erratic Energies","ilvl":246,"tierSlot":false,"hasTier":false},
+    {"slot":"Weapon","item":"Aln'hara Cane (Q5)","ilvl":285,"tierSlot":false,"hasTier":false}
+  ],
+  "raidSim": [
+    {"item":"Gaze of the Alnseer","slot":"Trinket","ilvl":263,"dps":2.5,"source":"Chimaerus the Undreamt God (H)","tier":false,"catalyst":false},
+    {"item":"Vaelgor's Final Stare","slot":"Trinket","ilvl":266,"dps":2.3,"source":"Vaelgor & Ezzorak (H)","tier":false,"catalyst":false},
+    {"item":"Voidbreaker's Veil","slot":"Head","ilvl":269,"dps":2.2,"source":"Catalyst","tier":true,"catalyst":true},
+    {"item":"Voidbreaker's Gloves","slot":"Hands","ilvl":266,"dps":2.1,"source":"Catalyst","tier":true,"catalyst":true},
+    {"item":"Voidbreaker's Veil","slot":"Head","ilvl":266,"dps":2.1,"source":"Midnight Falls (H)","tier":true,"catalyst":false},
+    {"item":"Voidbreaker's Gloves","slot":"Hands","ilvl":263,"dps":2.1,"source":"Vorasius (H)","tier":true,"catalyst":false},
+    {"item":"Locus-Walker's Ribbon","slot":"Trinket","ilvl":269,"dps":1.9,"source":"Crown of the Cosmos (H)","tier":false,"catalyst":false},
+    {"item":"Voidbreaker's Robe","slot":"Chest","ilvl":269,"dps":1.6,"source":"Catalyst","tier":true,"catalyst":true},
+    {"item":"Amulet of the Abyssal Hymn","slot":"Neck","ilvl":269,"dps":1.5,"source":"Midnight Falls (H)","tier":false,"catalyst":false},
+    {"item":"Despotic Raiment","slot":"Chest","ilvl":263,"dps":0.3,"source":"Fallen-King Salhadaar (H)","tier":false,"catalyst":false},
+    {"item":"Dream-Scorched Striders","slot":"Feet","ilvl":263,"dps":0.3,"source":"Chimaerus the Undreamt God (H)","tier":false,"catalyst":false},
+    {"item":"Voidbreaker's Encryption","slot":"Back","ilvl":259,"dps":0.3,"source":"Catalyst","tier":false,"catalyst":true},
+    {"item":"Imperator's Banner","slot":"Back","ilvl":259,"dps":0.2,"source":"Imperator Averzian (H)","tier":false,"catalyst":false},
+    {"item":"Voidbreaker's Sage Cord","slot":"Waist","ilvl":259,"dps":0.2,"source":"Catalyst","tier":false,"catalyst":true},
+    {"item":"Echoing Void Mantle","slot":"Shoulder","ilvl":266,"dps":0.2,"source":"Belo'ren, Child of Al'ar (H)","tier":false,"catalyst":false},
+    {"item":"Voidbreaker's Bracers","slot":"Wrist","ilvl":263,"dps":0.2,"source":"Catalyst","tier":false,"catalyst":true},
+    {"item":"Voidbreaker's Britches","slot":"Legs","ilvl":266,"dps":0.2,"source":"Vaelgor & Ezzorak (H)","tier":true,"catalyst":false},
+    {"item":"Slippers of the Midnight Flame","slot":"Feet","ilvl":266,"dps":0.1,"source":"Vaelgor & Ezzorak (H)","tier":false,"catalyst":false},
+    {"item":"Endless March Waistwrap","slot":"Waist","ilvl":259,"dps":0.1,"source":"Imperator Averzian (H)","tier":false,"catalyst":false}
+  ],
+  "mythicSim": [
+    {"item":"Pendant of Aching Grief","slot":"Neck","ilvl":266,"dps":0.2,"source":"Windrunner Spire +10","dungeon":"Windrunner Spire","catalyst":false},
+    {"item":"Voidbreaker's Bracers","slot":"Wrist","ilvl":266,"dps":0.2,"source":"Pit of Saron +10","dungeon":"Pit of Saron","catalyst":true},
+    {"item":"Clasp of Compliance","slot":"Waist","ilvl":266,"dps":0.2,"source":"Magisters' Terrace +10","dungeon":"Magisters' Terrace","catalyst":false},
+    {"item":"Leyline Leggings","slot":"Legs","ilvl":266,"dps":0.2,"source":"Nexus-Point Xenas +10","dungeon":"Nexus-Point Xenas","catalyst":false},
+    {"item":"Wristguards of Subterranean Moss","slot":"Wrist","ilvl":266,"dps":0.2,"source":"Pit of Saron +10","dungeon":"Pit of Saron","catalyst":false},
+    {"item":"Voidbreaker's Britches","slot":"Legs","ilvl":266,"dps":0.2,"source":"Windrunner Spire +10","dungeon":"Windrunner Spire","catalyst":true},
+    {"item":"Voidbender Robe","slot":"Chest","ilvl":266,"dps":0.2,"source":"Seat of the Triumvirate +10","dungeon":"Seat of the Triumvirate","catalyst":false},
+    {"item":"Eredath Seal of Nobility","slot":"Finger","ilvl":266,"dps":0.2,"source":"Seat of the Triumvirate +10","dungeon":"Seat of the Triumvirate","catalyst":false}
+  ],
+  "raidBossPriority": [
+    {"boss":"Chimaerus the Undreamt God","priority":"high","drops":["Gaze of the Alnseer (Trinket +2.5%)","Dream-Scorched Striders (Feet +0.3%)"]},
+    {"boss":"Midnight Falls","priority":"high","drops":["Voidbreaker's Veil (Head T +2.1%)","Amulet of the Abyssal Hymn (Neck +1.5%)"]},
+    {"boss":"Vorasius","priority":"high","drops":["Voidbreaker's Gloves (Hands T +2.1%)"]},
+    {"boss":"Vaelgor & Ezzorak","priority":"high","drops":["Vaelgor's Final Stare (Trinket +2.3%)","Voidbreaker's Britches (Legs T +0.2%)"]},
+    {"boss":"Crown of the Cosmos","priority":"medium","drops":["Locus-Walker's Ribbon (Trinket +1.9%)"]},
+    {"boss":"Fallen-King Salhadaar","priority":"low","drops":["Despotic Raiment (Chest +0.3%)"]},
+    {"boss":"Belo'ren, Child of Al'ar","priority":"low","drops":["Echoing Void Mantle (Shoulder +0.2%)"]},
+    {"boss":"Imperator Averzian","priority":"low","drops":["Imperator's Banner (Back +0.2%)","Endless March Waistwrap (Waist +0.1%)"]}
+  ],
+  "dungeonPriority": [
+    {"dungeon":"Pit of Saron","drops":2,"note":"2 wrist drops"},
+    {"dungeon":"Seat of the Triumvirate","drops":2,"note":"Chest + ring"},
+    {"dungeon":"Windrunner Spire","drops":2,"note":"Neck + tier legs (CAT)"},
+    {"dungeon":"Magisters' Terrace","drops":1,"note":"Waist"},
+    {"dungeon":"Nexus-Point Xenas","drops":1,"note":"Legs"}
+  ],
+  "gamePlan": {
+    "thisWeek": [
+      "Pit of Saron, Seat, Windrunner first",
+      "Push +8-10 for 272 vault",
+      "Fill 3 vault slots minimum",
+      "Do NOT Catalyst yet"
+    ],
+    "thursday": [
+      "Chimaerus: Trinket (+2.5%)",
+      "Midnight Falls: Head T (+2.1%)",
+      "Vorasius: Hands T (+2.1%)",
+      "Bonus roll on trinket boss"
+    ],
+    "afterRaid": [
+      "Vault pick: highest sim value",
+      "No tier drop? Catalyst best piece",
+      "Goal: 2-piece bonus active",
+      "Re-sim with new gear"
+    ]
+  }
+}
