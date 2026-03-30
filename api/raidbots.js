@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
       const pollRes = await fetch(`${RAIDBOTS_BASE}/api/job/${jobId}`, {
         headers: {
-          Cookie: `connect.sid=${session}`,
+          Cookie: `raidsid=${session}`,
           'x-csrf-token': csrf,
           'User-Agent': 'WowGearDiary/1.0',
         },
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Cookie: `connect.sid=${session}`,
+          Cookie: `raidsid=${session}`,
           'x-csrf-token': csrf,
           'User-Agent': 'WowGearDiary/1.0',
           Referer: 'https://www.raidbots.com/simbot',
