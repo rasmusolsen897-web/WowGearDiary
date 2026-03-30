@@ -39,7 +39,8 @@ export function useRaidbotsAPI() {
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/raidbots?jobId=${id}`)
-        if (res.status === 404) {
+        const ct = res.headers.get('content-type') ?? ''
+        if (res.status === 404 || !ct.includes('application/json')) {
           stopPolling()
           setError('API not available')
           setLoading(false)
@@ -90,7 +91,8 @@ export function useRaidbotsAPI() {
         body: JSON.stringify({ simc, type, advancedInput, droptimizer }),
       })
 
-      if (res.status === 404) throw new Error('API not available')
+      const ct = res.headers.get('content-type') ?? ''
+      if (res.status === 404 || !ct.includes('application/json')) throw new Error('API not available')
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? `HTTP ${res.status}`)

@@ -59,6 +59,8 @@ export function useWCLAPI(query, variables = {}, cacheId = null) {
     })
       .then(async (res) => {
         if (res.status === 404) throw new Error('API not available')
+        const ct = res.headers.get('content-type') ?? ''
+        if (!ct.includes('application/json')) throw new Error('API not available')
         if (!res.ok) {
           const body = await res.json().catch(() => ({}))
           throw new Error(body.error ?? `HTTP ${res.status}`)

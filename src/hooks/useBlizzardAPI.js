@@ -58,6 +58,10 @@ export function useBlizzardAPI(name, realm, region = 'eu') {
     fetch(`/api/blizzard?action=character&region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(name)}`)
       .then(async (res) => {
         if (res.status === 404) throw new Error('API not available')
+        // Check content-type before attempting JSON parse — in local dev Vite may
+        // serve the source file (text/javascript) instead of executing it.
+        const ct = res.headers.get('content-type') ?? ''
+        if (!ct.includes('application/json')) throw new Error('API not available')
         if (!res.ok) {
           const body = await res.json().catch(() => ({}))
           throw new Error(body.error ?? `HTTP ${res.status}`)
@@ -109,7 +113,11 @@ export function useBlizzardMedia(name, realm, region = 'eu') {
     setLoading(true)
 
     fetch(`/api/blizzard?action=media&region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(name)}`)
-      .then((res) => (res.ok ? res.json() : { avatarUrl: null }))
+      .then((res) => {
+        const ct = res.headers.get('content-type') ?? ''
+        if (!res.ok || !ct.includes('application/json')) return { avatarUrl: null }
+        return res.json()
+      })
       .then(({ avatarUrl: url }) => {
         if (cancelled) return
         if (url) writeCache(key, { avatarUrl: url })
