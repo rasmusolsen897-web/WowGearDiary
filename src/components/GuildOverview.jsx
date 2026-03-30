@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useBlizzardAPI, useCharacterParses, useRaidbotsAPI } from '../hooks/index.js'
+import { useBlizzardAPI, useCharacterParses } from '../hooks/index.js'
+import { useRaidbotsReport, getStoredReportUrl, setStoredReportUrl } from '../hooks/useRaidbotsReport.js'
 
 /**
  * GuildOverview — member cards with live Blizzard gear data, WCL parse badges,
- * and a Raidbots quick-sim button.
+ * and a Raidbots report link + DPS display.
  *
  * Props:
  *   guild  { name, region, realm, members[] }
@@ -58,52 +59,91 @@ function bestParseFromWCL(wclData) {
   }
 }
 
-// ── SimButton ────────────────────────────────────────────────────────────────
+// ── RaidbotsPanel ─────────────────────────────────────────────────────────────
 
-function SimButton({ member }) {
-  const { submitSim, status, progress, resultUrl, loading, error, reset } = useRaidbotsAPI()
+function RaidbotsPanel({ member, region, realm }) {
+  const memberKey = `${region}:${realm}:${member.name}`.toLowerCase()
+  const [reportUrl, setReportUrl] = useState(() => getStoredReportUrl(memberKey))
+  const [editing, setEditing]     = useState(false)
+  const [draft, setDraft]         = useState('')
 
-  if (resultUrl) {
-    return (
-      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-        <a
-          href={resultUrl}
-          target="_blank"
-          rel="noreferrer"
-          style={{ fontSize: '0.75rem', color: 'var(--frost-blue)', textDecoration: 'none', border: '1px solid var(--frost-blue)', borderRadius: '4px', padding: '0.2rem 0.5rem' }}
-        >
-          View sim ↗
-        </a>
-        <button onClick={reset} style={ghostBtn} title="Reset">✕</button>
-      </div>
-    )
+  const { dps, loading, error } = useRaidbotsReport(reportUrl)
+
+  const effectiveRealm = member.realm?.trim() || realm
+  const deepLink = `https://www.raidbots.com/simbot/quick?region=${region}&realm=${effectiveRealm}&name=${encodeURIComponent(member.name)}`
+
+  const saveUrl = () => {
+    const trimmed = draft.trim()
+    setStoredReportUrl(memberKey, trimmed)
+    setReportUrl(trimmed)
+    setEditing(false)
   }
 
-  if (loading) {
-    const pct = Math.round(progress * 100)
-    return (
-      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-        Simming… {pct > 0 ? `${pct}%` : status}
-      </span>
-    )
-  }
-
-  if (error) {
-    const msg = error === 'API not available' ? 'API offline' : 'Sim failed'
-    return <span style={{ fontSize: '0.75rem', color: '#ff4444' }}>{msg}</span>
-  }
-
-  if (!member.simc) {
-    return <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No SimC</span>
+  const clearUrl = () => {
+    setStoredReportUrl(memberKey, '')
+    setReportUrl('')
+    setEditing(false)
   }
 
   return (
-    <button
-      onClick={() => submitSim({ simc: member.simc, type: 'quick' })}
-      style={{ ...ghostBtn, borderColor: '#a335ee', color: '#a335ee' }}
-    >
-      Sim
-    </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+      {/* DPS result row */}
+      {loading && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Loading sim…</span>}
+      {error && <span style={{ fontSize: '0.75rem', color: '#ff4444' }}>Report error: {error}</span>}
+      {dps > 0 && !loading && (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+          <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a335ee' }}>
+            {(dps / 1000).toFixed(1)}k
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>DPS</span>
+          {reportUrl && (
+            <a href={reportUrl} target="_blank" rel="noreferrer"
+              style={{ fontSize: '0.7rem', color: 'var(--frost-blue)', marginLeft: '0.3rem' }}>
+              ↗
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Action row */}
+      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <a href={deepLink} target="_blank" rel="noreferrer" style={{
+          fontSize: '0.75rem', color: '#a335ee', textDecoration: 'none',
+          border: '1px solid #a335ee', borderRadius: '4px', padding: '0.2rem 0.5rem',
+        }}>
+          Sim in Raidbots ↗
+        </a>
+
+        {!editing && (
+          <button onClick={() => { setDraft(reportUrl); setEditing(true) }} style={ghostBtn}>
+            {reportUrl ? 'Update report' : 'Paste report'}
+          </button>
+        )}
+
+        {reportUrl && !editing && (
+          <button onClick={clearUrl} style={{ ...ghostBtn, borderColor: '#555', color: '#888' }} title="Clear report">✕</button>
+        )}
+      </div>
+
+      {/* URL input */}
+      {editing && (
+        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="https://www.raidbots.com/simbot/report/..."
+            style={{
+              flex: 1, background: '#0d0d1a', border: '1px solid #444', color: '#e0e0e0',
+              borderRadius: '4px', padding: '0.25rem 0.5rem', fontSize: '0.75rem',
+            }}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveUrl(); if (e.key === 'Escape') setEditing(false) }}
+          />
+          <button onClick={saveUrl} style={{ ...ghostBtn, borderColor: 'var(--success)', color: 'var(--success)' }}>Save</button>
+          <button onClick={() => setEditing(false)} style={{ ...ghostBtn, borderColor: '#555', color: '#888' }}>✕</button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -197,9 +237,9 @@ function MemberCard({ member, region, realm }) {
         </div>
       )}
 
-      {/* SimC / Raidbots */}
+      {/* Raidbots */}
       <div style={{ marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid #1a1a2e' }}>
-        <SimButton member={member} />
+        <RaidbotsPanel member={member} region={region} realm={realm} />
       </div>
     </div>
   )

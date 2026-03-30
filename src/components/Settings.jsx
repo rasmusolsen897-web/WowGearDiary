@@ -254,10 +254,6 @@ export default function Settings({ open, onClose, guild, onGuildChange }) {
               method="POST"
               body={{ query: '{ worldData { zone(id: 41) { id name } } }' }}
             />
-            <ApiStatusRow
-              label="Raidbots — session"
-              endpoint="/api/raidbots?jobId=test-ping"
-            />
           </section>
         </div>
 
