@@ -5,6 +5,8 @@ import TierProgress from './components/TierProgress.jsx'
 import GearSlots from './components/GearSlots.jsx'
 import SimTable from './components/SimTable.jsx'
 import UpgradeCharts from './components/UpgradeCharts.jsx'
+import CatalystPlanner from './components/CatalystPlanner.jsx'
+import WeeklyTracker from './components/WeeklyTracker.jsx'
 import RaidBossPriority from './components/RaidBossPriority.jsx'
 import DungeonPriority from './components/DungeonPriority.jsx'
 import GamePlan from './components/GamePlan.jsx'
@@ -26,6 +28,10 @@ export default function App() {
 
       <div className="section">
         <TierProgress gear={data.gear} />
+      </div>
+
+      <div className="section">
+        <CatalystPlanner gear={data.gear} raidSim={data.raidSim} character={data.character} />
       </div>
 
       <div className="section main-grid">
@@ -52,6 +58,10 @@ export default function App() {
 
       <div className="section">
         <UpgradeCharts data={data} />
+      </div>
+
+      <div className="section">
+        <WeeklyTracker bosses={data.raidBossPriority} dungeons={data.dungeonPriority} />
       </div>
 
       <div className="section">
