@@ -68,9 +68,14 @@ export function useRaidbotsReport(reportUrl) {
     setLoading(true)
     setError(null)
 
-    fetch(`https://www.raidbots.com/simbot/report/${reportId}/data.json`)
+    fetch(`/api/raidbots-report?id=${reportId}`)
       .then(async (res) => {
-        if (!res.ok) throw new Error(`Report not found (${res.status})`)
+        const ct = res.headers.get('content-type') ?? ''
+        if (!ct.includes('application/json')) throw new Error('API not available')
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error ?? `Report not found (${res.status})`)
+        }
         return res.json()
       })
       .then((json) => {
