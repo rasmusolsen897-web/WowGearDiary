@@ -1,19 +1,20 @@
-import { useState } from 'react'
 import data from './data.json'
+import { useStorage } from './hooks/index.js'
 import CharacterHeader from './components/CharacterHeader.jsx'
 import TierProgress from './components/TierProgress.jsx'
 import GearSlots from './components/GearSlots.jsx'
 import SimTable from './components/SimTable.jsx'
+import UpgradeCharts from './components/UpgradeCharts.jsx'
 import RaidBossPriority from './components/RaidBossPriority.jsx'
 import DungeonPriority from './components/DungeonPriority.jsx'
 import GamePlan from './components/GamePlan.jsx'
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('raid')       // 'raid' | 'mythic'
-  const [selectedSlot, setSelectedSlot] = useState(null)   // slot name string
-  const [typeFilter, setTypeFilter] = useState('all')       // 'all' | 'tier' | 'trinket'
-  const [raidOnly, setRaidOnly] = useState(false)
-  const [showCatalyst, setShowCatalyst] = useState(true)
+  const [activeTab, setActiveTab] = useStorage('tab', 'raid')
+  const [selectedSlot, setSelectedSlot] = useStorage('slot', null)
+  const [typeFilter, setTypeFilter] = useStorage('filter', 'all')
+  const [raidOnly, setRaidOnly] = useStorage('raidonly', false)
+  const [showCatalyst, setShowCatalyst] = useStorage('catalyst', true)
 
   function handleSlotClick(slot) {
     setSelectedSlot(prev => (prev === slot ? null : slot))
@@ -47,6 +48,10 @@ export default function App() {
           showCatalyst={showCatalyst}
           onShowCatalyst={setShowCatalyst}
         />
+      </div>
+
+      <div className="section">
+        <UpgradeCharts data={data} />
       </div>
 
       <div className="section">

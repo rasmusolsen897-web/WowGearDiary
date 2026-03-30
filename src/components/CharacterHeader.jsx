@@ -1,3 +1,5 @@
+import ShareButton from './ShareButton.jsx'
+
 export default function CharacterHeader({ character }) {
   const charges = character.catalystCharges
   const maxCharges = 8
@@ -40,6 +42,7 @@ export default function CharacterHeader({ character }) {
             }}>
               {character.class}
             </span>
+            <ShareButton />
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', color: 'var(--text-muted)', fontSize: 13 }}>
