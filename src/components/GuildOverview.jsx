@@ -115,8 +115,9 @@ const ghostBtn = {
 // ── MemberCard ───────────────────────────────────────────────────────────────
 
 function MemberCard({ member, region, realm }) {
-  const { data, loading: gearLoading, error: gearError, refresh } = useBlizzardAPI(member.name, realm, region)
-  const { data: wclData, loading: wclLoading } = useCharacterParses(member.name, realm, region)
+  const effectiveRealm = member.realm?.trim() || realm
+  const { data, loading: gearLoading, error: gearError, refresh } = useBlizzardAPI(member.name, effectiveRealm, region)
+  const { data: wclData, loading: wclLoading } = useCharacterParses(member.name, effectiveRealm, region)
 
   const classColor = CLASS_COLORS[member.class] ?? '#e0e0e0'
   const parse = bestParseFromWCL(wclData)

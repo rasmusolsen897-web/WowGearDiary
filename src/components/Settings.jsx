@@ -89,6 +89,12 @@ function MemberRow({ member, onChange, onRemove }) {
         placeholder="Character name"
         style={inputStyle}
       />
+      <input
+        value={member.realm ?? ''}
+        onChange={(e) => onChange({ ...member, realm: e.target.value })}
+        placeholder="Realm (blank = guild default)"
+        style={{ ...inputStyle, flex: 2 }}
+      />
       <select
         value={member.class}
         onChange={(e) => onChange({ ...member, class: e.target.value })}
