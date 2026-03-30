@@ -3,6 +3,7 @@ import { useStorage } from '../hooks/index.js'
 import { useBlizzardAPI, useBlizzardMedia } from '../hooks/useBlizzardAPI.js'
 import { useCharacterParses } from '../hooks/useWCLAPI.js'
 import { useRaidbotsReport, getStoredReportUrl, setStoredReportUrl } from '../hooks/useRaidbotsReport.js'
+import { useDroptimizerReport, getStoredDroptimizerUrl, setStoredDroptimizerUrl } from '../hooks/useDroptimizerReport.js'
 import { useState, useEffect } from 'react'
 import TierProgress from './TierProgress.jsx'
 import GearSlots from './GearSlots.jsx'
@@ -108,6 +109,179 @@ function RaidbotsSection({ member, region, realm, onUpdateMember }) {
           <button onClick={save} style={{ ...ghostBtn, borderColor: 'var(--success)', color: 'var(--success)' }}>Save</button>
           <button onClick={() => setEditing(false)} style={{ ...ghostBtn, borderColor: '#555', color: '#666' }}>✕</button>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── DroptimizerSection ────────────────────────────────────────────────────────
+
+function ilvlClass(ilvl) {
+  if (ilvl >= 272) return 'ilvl-legendary'
+  if (ilvl >= 263) return 'ilvl-epic'
+  if (ilvl >= 250) return 'ilvl-rare'
+  if (ilvl >= 232) return 'ilvl-uncommon'
+  return 'ilvl-common'
+}
+
+function dpsDeltaColor(delta) {
+  if (delta > 0) return 'var(--success)'
+  if (delta < 0) return 'var(--legendary-orange)'
+  return 'var(--text-muted)'
+}
+
+function DroptimizerSection({ member, region, realm }) {
+  const memberKey = `${region}:${realm}:${member.name}`.toLowerCase()
+  const [reportUrl, setReportUrl] = useState(() => getStoredDroptimizerUrl(memberKey))
+  const [editing, setEditing]     = useState(false)
+  const [draft, setDraft]         = useState('')
+  const [sortKey, setSortKey]     = useState('dpsDelta')
+  const [sortDir, setSortDir]     = useState('desc')
+
+  const { upgrades, baseDps, spec, difficulty, loading, error } = useDroptimizerReport(reportUrl)
+
+  const deepLink = `https://www.raidbots.com/simbot/droptimizer?region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(member.name)}`
+
+  const save = () => {
+    const t = draft.trim()
+    setStoredDroptimizerUrl(memberKey, t)
+    setReportUrl(t)
+    setEditing(false)
+  }
+
+  const handleSort = (key) => {
+    setSortDir(prev => sortKey === key ? (prev === 'desc' ? 'asc' : 'desc') : 'desc')
+    setSortKey(key)
+  }
+
+  const sorted = upgrades ? [...upgrades].sort((a, b) => {
+    const av = a[sortKey] ?? 0
+    const bv = b[sortKey] ?? 0
+    if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+    return sortDir === 'asc' ? av - bv : bv - av
+  }) : []
+
+  const COLS = [
+    { key: 'name',      label: 'Item' },
+    { key: 'slot',      label: 'Slot' },
+    { key: 'itemLevel', label: 'iLvl' },
+    { key: 'source',    label: 'Source' },
+    { key: 'dpsDelta',  label: '+DPS' },
+    { key: 'dpsPct',    label: '+%' },
+  ]
+
+  return (
+    <div style={card}>
+      <h3 style={sectionTitle}>Droptimizer</h3>
+      {loading && <p style={muted}>Loading report…</p>}
+      {error && error !== 'API not available' && (
+        <p style={{ color: '#ff4444', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{error}</p>
+      )}
+
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+        <a href={deepLink} target="_blank" rel="noreferrer" style={purpleBtn}>Run Droptimizer ↗</a>
+        {!editing && (
+          <button onClick={() => { setDraft(reportUrl); setEditing(true) }} style={ghostBtn}>
+            {reportUrl ? 'Update report' : 'Paste report URL'}
+          </button>
+        )}
+        {reportUrl && !editing && (
+          <button
+            onClick={() => { setStoredDroptimizerUrl(memberKey, ''); setReportUrl('') }}
+            style={{ ...ghostBtn, borderColor: '#555', color: '#666' }}
+          >Clear</button>
+        )}
+        {reportUrl && !editing && !loading && (
+          <a href={`https://www.raidbots.com/simbot/report/${reportUrl.match(/report\/([A-Za-z0-9]+)/)?.[1] ?? reportUrl}`}
+            target="_blank" rel="noreferrer"
+            style={{ fontSize: '0.8rem', color: 'var(--frost-blue)', alignSelf: 'center' }}>
+            View report ↗
+          </a>
+        )}
+      </div>
+
+      {/* URL input */}
+      {editing && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <input
+            autoFocus
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            placeholder="https://www.raidbots.com/simbot/report/..."
+            onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+            style={{ flex: 1, background: '#0d0d1a', border: '1px solid #444', color: '#e0e0e0', borderRadius: 4, padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}
+          />
+          <button onClick={save} style={{ ...ghostBtn, borderColor: 'var(--success)', color: 'var(--success)' }}>Save</button>
+          <button onClick={() => setEditing(false)} style={{ ...ghostBtn, borderColor: '#555', color: '#666' }}>✕</button>
+        </div>
+      )}
+
+      {/* Results */}
+      {upgrades && upgrades.length === 0 && !loading && (
+        <p style={muted}>No upgrades found in this report.</p>
+      )}
+
+      {upgrades && upgrades.length > 0 && (
+        <>
+          {/* Metadata */}
+          <p style={{ ...muted, marginBottom: '0.75rem' }}>
+            {[
+              spec,
+              difficulty && difficulty.charAt(0).toUpperCase() + difficulty.slice(1),
+              baseDps > 0 && `${(baseDps / 1000).toFixed(1)}k base DPS`,
+              `${upgrades.length} items`,
+            ].filter(Boolean).join(' · ')}
+          </p>
+
+          {/* Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table className="sim-table">
+              <thead>
+                <tr>
+                  {COLS.map(col => (
+                    <th
+                      key={col.key}
+                      onClick={() => handleSort(col.key)}
+                      style={{
+                        cursor: 'pointer', userSelect: 'none',
+                        color: sortKey === col.key ? 'var(--frost-blue)' : undefined,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {col.label}{sortKey === col.key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((row, i) => (
+                  <tr key={`${row.itemId}-${i}`}>
+                    <td style={{ fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {row.name}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{row.slot || '—'}</td>
+                    <td>
+                      {row.itemLevel
+                        ? <span className={ilvlClass(row.itemLevel)}>{row.itemLevel}</span>
+                        : <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      }
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {row.source || '—'}
+                    </td>
+                    <td style={{ fontWeight: 700, color: dpsDeltaColor(row.dpsDelta), whiteSpace: 'nowrap' }}>
+                      {row.dpsDelta >= 0 ? '+' : ''}{row.dpsDelta.toLocaleString()}
+                    </td>
+                    <td style={{ fontWeight: 600, color: dpsDeltaColor(row.dpsDelta), whiteSpace: 'nowrap' }}>
+                      {row.dpsPct >= 0 ? '+' : ''}{row.dpsPct.toFixed(2)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )
@@ -228,8 +402,11 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
         {gearError && gearError !== 'API not available' && <span style={{ color: '#ff4444', fontSize: '0.85rem', alignSelf: 'center' }}>{gearError}</span>}
       </div>
 
-      {/* Raidbots */}
-      <RaidbotsSection member={member} region={region} realm={effectiveRealm} />
+      {/* Raidbots Quick Sim */}
+      <RaidbotsSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} />
+
+      {/* Droptimizer */}
+      <DroptimizerSection member={member} region={region} realm={effectiveRealm} />
 
       {/* Gear list from live API */}
       {bliz?.gear && <GearList gear={bliz.gear} />}
