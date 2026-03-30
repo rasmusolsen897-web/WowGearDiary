@@ -154,7 +154,7 @@ const ghostBtn = {
 
 // ── MemberCard ───────────────────────────────────────────────────────────────
 
-function MemberCard({ member, region, realm }) {
+function MemberCard({ member, region, realm, onSelect }) {
   const effectiveRealm = member.realm?.trim() || realm
   const { data, loading: gearLoading, error: gearError, refresh } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { data: wclData, loading: wclLoading } = useCharacterParses(member.name, effectiveRealm, region)
@@ -163,14 +163,19 @@ function MemberCard({ member, region, realm }) {
   const parse = bestParseFromWCL(wclData)
 
   const ilvl = data?.avgIlvl ?? null
-  const tierCount = data?.gear?.filter((g) => g.quality === 'EPIC' && g.slot?.startsWith('Tier'))?.length ?? null
 
   return (
-    <div style={{
-      background: 'var(--card)', borderRadius: '8px', padding: '1rem',
-      border: '1px solid #2a2a3e', display: 'flex', flexDirection: 'column', gap: '0.6rem',
-      minWidth: '220px', flex: '1 1 220px',
-    }}>
+    <div
+      onClick={onSelect}
+      style={{
+        background: 'var(--card)', borderRadius: '8px', padding: '1rem',
+        border: '1px solid #2a2a3e', display: 'flex', flexDirection: 'column', gap: '0.6rem',
+        minWidth: '220px', flex: '1 1 220px', cursor: 'pointer',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = classColor; e.currentTarget.style.boxShadow = `0 0 12px ${classColor}33` }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a3e'; e.currentTarget.style.boxShadow = 'none' }}
+    >
       {/* Name + class */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -237,9 +242,8 @@ function MemberCard({ member, region, realm }) {
         </div>
       )}
 
-      {/* Raidbots */}
-      <div style={{ marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid #1a1a2e' }}>
-        <RaidbotsPanel member={member} region={region} realm={realm} />
+      <div style={{ marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid #1a1a2e', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+        Click to view details →
       </div>
     </div>
   )
@@ -247,7 +251,7 @@ function MemberCard({ member, region, realm }) {
 
 // ── GuildOverview ─────────────────────────────────────────────────────────────
 
-export default function GuildOverview({ guild }) {
+export default function GuildOverview({ guild, onSelectMember }) {
   const [showAlts, setShowAlts] = useState(false)
 
   if (!guild?.members?.length) {
@@ -280,7 +284,7 @@ export default function GuildOverview({ guild }) {
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
         {displayed.map((m) => (
-          <MemberCard key={m.name} member={m} region={guild.region} realm={guild.realm} />
+          <MemberCard key={m.name} member={m} region={guild.region} realm={guild.realm} onSelect={() => onSelectMember?.(m)} />
         ))}
       </div>
     </section>
