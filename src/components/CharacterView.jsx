@@ -290,6 +290,77 @@ function DroptimizerSection({ member, region, realm }) {
   )
 }
 
+// ── WclSection ────────────────────────────────────────────────────────────────
+
+function WclSection({ wclData, loading }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const { bosses, diff, zoneName, avgPct } = useMemo(() => {
+    if (!wclData) return { bosses: [], diff: null, zoneName: null, avgPct: null }
+    let rankings = (wclData.rankingsHeroic?.rankings ?? []).filter(r => (r.totalKills ?? 0) > 0)
+    let diff = 'Heroic'
+    let zone = wclData.rankingsHeroic?.zone
+    if (!rankings.length) {
+      rankings = (wclData.rankingsNormal?.rankings ?? []).filter(r => (r.totalKills ?? 0) > 0)
+      diff = 'Normal'
+      zone = wclData.rankingsNormal?.zone
+    }
+    if (!rankings.length) return { bosses: [], diff: null, zoneName: zone?.name ?? null, avgPct: null }
+    const avg = rankings.reduce((s, r) => s + (r.rankPercent ?? 0), 0) / rankings.length
+    return { bosses: rankings, diff, zoneName: zone?.name ?? null, avgPct: Math.round(avg) }
+  }, [wclData])
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: expanded ? '0.75rem' : 0 }}>
+        <h3 style={{ ...sectionTitle, marginBottom: 0 }}>Warcraft Logs</h3>
+        {loading && <span style={muted}>Fetching parses…</span>}
+        {!loading && zoneName && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{zoneName} · {diff}</span>}
+        {!loading && avgPct !== null && (
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: parseBadgeColor(avgPct), border: `1px solid ${parseBadgeColor(avgPct)}`, borderRadius: 4, padding: '0.1rem 0.45rem' }}>
+            avg {avgPct}%
+          </span>
+        )}
+        {!loading && !avgPct && wclData && <span style={muted}>No parse data found.</span>}
+        {!loading && bosses.length > 0 && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            style={{ ...ghostBtn, marginLeft: 'auto', fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}
+          >
+            {expanded ? '▲ Hide' : `▼ ${bosses.length} bosses`}
+          </button>
+        )}
+      </div>
+
+      {expanded && bosses.length > 0 && (
+        <table className="wcl-boss-table">
+          <thead>
+            <tr>
+              <th>Boss</th>
+              <th>Parse</th>
+              <th>Kills</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bosses.map(r => {
+              const pct = Math.round(r.rankPercent ?? 0)
+              return (
+                <tr key={r.encounter?.id ?? r.encounter?.name}>
+                  <td>{r.encounter?.name ?? '—'}</td>
+                  <td>
+                    <span style={{ fontWeight: 700, color: parseBadgeColor(pct) }}>{pct}%</span>
+                  </td>
+                  <td style={{ color: 'var(--text-muted)' }}>{r.totalKills ?? 0}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 // ── GearList ──────────────────────────────────────────────────────────────────
 
 function GearList({ gear }) {
@@ -325,7 +396,7 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
 
   const { data: bliz, loading: gearLoading, error: gearError } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { avatarUrl }  = useBlizzardMedia(member.name, effectiveRealm, region)
-  const { data: wcl }  = useCharacterParses(member.name, effectiveRealm, region)
+  const { data: wcl, loading: wclLoading } = useCharacterParses(member.name, effectiveRealm, region)
 
   // Auto-learn class/spec/role from Blizzard API (in useEffect, not during render)
   useEffect(() => {
@@ -412,6 +483,9 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
 
       {/* Droptimizer */}
       <DroptimizerSection member={member} region={region} realm={effectiveRealm} />
+
+      {/* Warcraft Logs — per-boss parses */}
+      <WclSection wclData={wcl} loading={wclLoading} />
 
       {/* Gear list from live API */}
       {bliz?.gear && <GearList gear={bliz.gear} />}

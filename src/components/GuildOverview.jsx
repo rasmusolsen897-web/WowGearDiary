@@ -29,17 +29,18 @@ function parseBadgeColor(pct) {
   return '#9d9d9d'
 }
 
-function bestParseFromWCL(wclData) {
+function avgParseFromWCL(wclData) {
   if (!wclData) return null
-  const rankings = wclData.rankingsMythic?.rankings
-    ?? wclData.rankingsHeroic?.rankings
-    ?? wclData.rankingsNormal?.rankings ?? []
-  if (!rankings.length) return null
-  const best = rankings.reduce((a, b) => (b.rankPercent > a.rankPercent ? b : a), rankings[0])
-  return {
-    pct:  Math.round(best.rankPercent ?? 0),
-    diff: wclData.rankingsMythic?.rankings?.length ? 'M' : wclData.rankingsHeroic?.rankings?.length ? 'H' : 'N',
+  // Prefer heroic, fall back to normal — only count bosses with at least one kill
+  let rankings = (wclData.rankingsHeroic?.rankings ?? []).filter(r => (r.totalKills ?? 0) > 0)
+  let diff = 'H'
+  if (!rankings.length) {
+    rankings = (wclData.rankingsNormal?.rankings ?? []).filter(r => (r.totalKills ?? 0) > 0)
+    diff = 'N'
   }
+  if (!rankings.length) return null
+  const avg = rankings.reduce((s, r) => s + (r.rankPercent ?? 0), 0) / rankings.length
+  return { pct: Math.round(avg), diff, bossCount: rankings.length }
 }
 
 // ── Guild Summary Bar ─────────────────────────────────────────────────────────
@@ -87,7 +88,7 @@ const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMem
     if (data && onDataLoaded) onDataLoaded(member.name, data)
   }, [data, member.name, onDataLoaded])
 
-  const parse = useMemo(() => bestParseFromWCL(wclData), [wclData])
+  const parse = useMemo(() => avgParseFromWCL(wclData), [wclData])
 
   useEffect(() => {
     if (parse && onParseLoaded) onParseLoaded(member.name, parse.pct)

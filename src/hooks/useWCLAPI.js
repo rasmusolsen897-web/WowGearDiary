@@ -118,12 +118,12 @@ const CHARACTER_RANKINGS_QUERY = /* GraphQL */ `
  * useCharacterParses(name, realm, region, zoneID)
  *
  * Convenience wrapper that fetches character rankings from WCL.
- * zoneID defaults to 41 (Liberation of Undermine — patch 12.0).
+ * zoneID defaults to null — WCL auto-selects the character's most recent tier.
  * Returns { data: { character }, loading, error, refresh }.
  */
-export function useCharacterParses(name, realm, region = 'eu', zoneID = 41) {
+export function useCharacterParses(name, realm, region = 'eu', zoneID = null) {
   const variables = { name, serverSlug: realm, serverRegion: region, zoneID }
-  const cacheId   = `parses:${region}:${realm}:${name}:${zoneID}`.toLowerCase()
+  const cacheId   = `parses:${region}:${realm}:${name}:${zoneID ?? 'auto'}`.toLowerCase()
 
   const { data, loading, error, refresh } = useWCLAPI(
     name && realm ? CHARACTER_RANKINGS_QUERY : null,

@@ -234,6 +234,32 @@ body {
   background: linear-gradient(to right, var(--border-bright), transparent);
 }
 
+/* ---- WCL per-boss table ---- */
+.wcl-boss-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.wcl-boss-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.5rem 0.4rem;
+  border-bottom: 1px solid #2a2a3e;
+}
+.wcl-boss-table td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #1a1a2e;
+}
+.wcl-boss-table tr:last-child td {
+  border-bottom: none;
+}
+.wcl-boss-table tbody tr:hover {
+  background: rgba(105, 204, 255, 0.04);
+}
+
 /* ---- Table ---- */
 .sim-table {
   width: 100%;
