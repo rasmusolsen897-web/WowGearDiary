@@ -256,11 +256,15 @@ export default function Settings({ open, onClose, guild, onGuildChange }) {
   }
 
   const removeMember = (i) => {
-    setLocalGuild(g => ({ ...g, members: g.members.filter((_, j) => j !== i) }))
+    const updated = { ...localGuild, members: localGuild.members.filter((_, j) => j !== i) }
+    setLocalGuild(updated)
+    onGuildChange(updated)   // persist immediately
   }
 
   const addMember = (newMember) => {
-    setLocalGuild(g => ({ ...g, members: [...g.members, newMember] }))
+    const updated = { ...localGuild, members: [...localGuild.members, newMember] }
+    setLocalGuild(updated)
+    onGuildChange(updated)   // persist immediately — don't wait for Save button
     setShowAddForm(false)
   }
 
