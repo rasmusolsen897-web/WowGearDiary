@@ -106,7 +106,8 @@
         "spec": "Frost",
         "role": "dps",
         "isMain": true,
-        "realm": ""
+        "realm": "",
+        "altOf": null
       },
       {
         "name": "Krypts",
@@ -115,7 +116,8 @@
         "spec": "",
         "role": "dps",
         "isMain": true,
-        "realm": ""
+        "realm": "",
+        "altOf": null
       },
       {
         "name": "Mufuzu",
@@ -124,7 +126,8 @@
         "spec": "",
         "role": "dps",
         "isMain": true,
-        "realm": ""
+        "realm": "",
+        "altOf": null
       },
       {
         "name": "Hellmeister",
@@ -133,7 +136,8 @@
         "spec": "",
         "role": "dps",
         "isMain": true,
-        "realm": ""
+        "realm": "",
+        "altOf": null
       },
       {
         "name": "Chenex",
@@ -142,7 +146,8 @@
         "spec": "",
         "role": "dps",
         "isMain": false,
-        "realm": ""
+        "realm": "",
+        "altOf": null
       },
       {
         "name": "Dostoblast",
@@ -151,7 +156,8 @@
         "spec": "",
         "role": "dps",
         "isMain": false,
-        "realm": ""
+        "realm": "",
+        "altOf": "Krypts"
       }
     ]
   }

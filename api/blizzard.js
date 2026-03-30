@@ -88,12 +88,21 @@ async function fetchCharacter(region, realm, name, token) {
   const [equip, summary] = await Promise.all([equipRes.json(), summaryRes.ok ? summaryRes.json() : {}])
 
   const gear = (equip.equipped_items ?? []).map((item) => ({
-    slot:   normalizeSlotType(item.slot?.type ?? ''),
-    item:   item.name ?? 'Unknown',
-    ilvl:   item.level?.value ?? 0,
-    id:     item.item?.id ?? null,
+    slot:    normalizeSlotType(item.slot?.type ?? ''),
+    item:    item.name ?? 'Unknown',
+    ilvl:    item.level?.value ?? 0,
+    id:      item.item?.id ?? null,
     quality: item.quality?.type ?? 'COMMON',
+    isTier:  item.set != null,
   }))
+
+  const CRAFTED_WEAPON_MIN_ILVL = 285
+  const tierCount = gear.filter(g => g.isTier).length
+  const craftedWeapon = gear.find(g =>
+    (g.slot === 'Weapon' || g.slot === 'Off-Hand') && g.ilvl >= CRAFTED_WEAPON_MIN_ILVL
+  )
+  const hasCraftedWeapon  = craftedWeapon != null
+  const craftedWeaponIlvl = craftedWeapon?.ilvl ?? null
 
   const avgIlvl = summary.average_item_level ?? summary.equipped_item_level ?? 0
 
@@ -106,6 +115,9 @@ async function fetchCharacter(region, realm, name, token) {
     faction: summary.faction?.type ?? '',
     avgIlvl,
     gear,
+    tierCount,
+    hasCraftedWeapon,
+    craftedWeaponIlvl,
   }
 }
 

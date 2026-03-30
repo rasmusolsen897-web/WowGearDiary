@@ -1,30 +1,15 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useBlizzardAPI, useCharacterParses } from '../hooks/index.js'
-import { useRaidbotsReport, getStoredReportUrl, setStoredReportUrl } from '../hooks/useRaidbotsReport.js'
-
-/**
- * GuildOverview — member cards with live Blizzard gear data, WCL parse badges,
- * and a Raidbots report link + DPS display.
- *
- * Props:
- *   guild  { name, region, realm, members[] }
- */
+import { getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
+import { useRaidbotsReport } from '../hooks/useRaidbotsReport.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const CLASS_COLORS = {
-  'Death Knight':  '#c41e3a',
-  'Demon Hunter':  '#a330c9',
-  'Druid':         '#ff7d0a',
-  'Evoker':        '#33937f',
-  'Hunter':        '#abd473',
-  'Mage':          '#69ccff',
-  'Monk':          '#00ff96',
-  'Paladin':       '#f58cba',
-  'Priest':        '#ffffff',
-  'Rogue':         '#fff569',
-  'Shaman':        '#0070de',
-  'Warlock':       '#9482c9',
+  'Death Knight':  '#c41e3a', 'Demon Hunter': '#a330c9', 'Druid':   '#ff7d0a',
+  'Evoker':        '#33937f', 'Hunter':       '#abd473', 'Mage':    '#69ccff',
+  'Monk':          '#00ff96', 'Paladin':      '#f58cba', 'Priest':  '#ffffff',
+  'Rogue':         '#fff569', 'Shaman':       '#0070de', 'Warlock': '#9482c9',
   'Warrior':       '#c79c6e',
 }
 
@@ -37,131 +22,73 @@ function ilvlColor(ilvl) {
 }
 
 function parseBadgeColor(pct) {
-  if (pct >= 95) return '#e268a8'   // legendary
-  if (pct >= 75) return '#ff8000'   // orange
-  if (pct >= 50) return '#1eff00'   // green
-  if (pct >= 25) return '#0070dd'   // blue
-  return '#9d9d9d'                  // grey
+  if (pct >= 95) return '#e268a8'
+  if (pct >= 75) return '#ff8000'
+  if (pct >= 50) return '#1eff00'
+  if (pct >= 25) return '#0070dd'
+  return '#9d9d9d'
 }
 
 function bestParseFromWCL(wclData) {
   if (!wclData) return null
   const rankings = wclData.rankingsMythic?.rankings
     ?? wclData.rankingsHeroic?.rankings
-    ?? wclData.rankingsNormal?.rankings
-    ?? []
+    ?? wclData.rankingsNormal?.rankings ?? []
   if (!rankings.length) return null
   const best = rankings.reduce((a, b) => (b.rankPercent > a.rankPercent ? b : a), rankings[0])
   return {
-    pct:   Math.round(best.rankPercent ?? 0),
-    spec:  best.spec ?? '',
-    diff:  wclData.rankingsMythic?.rankings?.length ? 'M' : wclData.rankingsHeroic?.rankings?.length ? 'H' : 'N',
+    pct:  Math.round(best.rankPercent ?? 0),
+    diff: wclData.rankingsMythic?.rankings?.length ? 'M' : wclData.rankingsHeroic?.rankings?.length ? 'H' : 'N',
   }
 }
 
-// ── RaidbotsPanel ─────────────────────────────────────────────────────────────
+// ── Guild Summary Bar ─────────────────────────────────────────────────────────
 
-function RaidbotsPanel({ member, region, realm }) {
-  const memberKey = `${region}:${realm}:${member.name}`.toLowerCase()
-  const [reportUrl, setReportUrl] = useState(() => getStoredReportUrl(memberKey))
-  const [editing, setEditing]     = useState(false)
-  const [draft, setDraft]         = useState('')
+function GuildSummaryBar({ memberData }) {
+  const values = Object.values(memberData)
+  if (!values.length) return null
 
-  const { dps, loading, error } = useRaidbotsReport(reportUrl)
-
-  const effectiveRealm = member.realm?.trim() || realm
-  const deepLink = `https://www.raidbots.com/simbot/quick?region=${region}&realm=${effectiveRealm}&name=${encodeURIComponent(member.name)}`
-
-  const saveUrl = () => {
-    const trimmed = draft.trim()
-    setStoredReportUrl(memberKey, trimmed)
-    setReportUrl(trimmed)
-    setEditing(false)
-  }
-
-  const clearUrl = () => {
-    setStoredReportUrl(memberKey, '')
-    setReportUrl('')
-    setEditing(false)
-  }
+  const ilvls      = values.map(d => d.avgIlvl).filter(Boolean)
+  const avgIlvl    = ilvls.length ? Math.round(ilvls.reduce((s, v) => s + v, 0) / ilvls.length) : null
+  const count4pc   = values.filter(d => (d.tierCount ?? 0) >= 4).length
+  const count2pc   = values.filter(d => (d.tierCount ?? 0) >= 2 && (d.tierCount ?? 0) < 4).length
+  const countCraft = values.filter(d => d.hasCraftedWeapon).length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      {/* DPS result row */}
-      {loading && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Loading sim…</span>}
-      {error && <span style={{ fontSize: '0.75rem', color: '#ff4444' }}>Report error: {error}</span>}
-      {dps > 0 && !loading && (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-          <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a335ee' }}>
-            {(dps / 1000).toFixed(1)}k
-          </span>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>DPS</span>
-          {reportUrl && (
-            <a href={reportUrl} target="_blank" rel="noreferrer"
-              style={{ fontSize: '0.7rem', color: 'var(--frost-blue)', marginLeft: '0.3rem' }}>
-              ↗
-            </a>
-          )}
-        </div>
+    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+      {avgIlvl && (
+        <span className="stat-pill stat-pill-ilvl">⚔ {avgIlvl} avg iLvl</span>
       )}
-
-      {/* Action row */}
-      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <a href={deepLink} target="_blank" rel="noreferrer" style={{
-          fontSize: '0.75rem', color: '#a335ee', textDecoration: 'none',
-          border: '1px solid #a335ee', borderRadius: '4px', padding: '0.2rem 0.5rem',
-        }}>
-          Sim in Raidbots ↗
-        </a>
-
-        {!editing && (
-          <button onClick={() => { setDraft(reportUrl); setEditing(true) }} style={ghostBtn}>
-            {reportUrl ? 'Update report' : 'Paste report'}
-          </button>
-        )}
-
-        {reportUrl && !editing && (
-          <button onClick={clearUrl} style={{ ...ghostBtn, borderColor: '#555', color: '#888' }} title="Clear report">✕</button>
-        )}
-      </div>
-
-      {/* URL input */}
-      {editing && (
-        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="https://www.raidbots.com/simbot/report/..."
-            style={{
-              flex: 1, background: '#0d0d1a', border: '1px solid #444', color: '#e0e0e0',
-              borderRadius: '4px', padding: '0.25rem 0.5rem', fontSize: '0.75rem',
-            }}
-            onKeyDown={(e) => { if (e.key === 'Enter') saveUrl(); if (e.key === 'Escape') setEditing(false) }}
-          />
-          <button onClick={saveUrl} style={{ ...ghostBtn, borderColor: 'var(--success)', color: 'var(--success)' }}>Save</button>
-          <button onClick={() => setEditing(false)} style={{ ...ghostBtn, borderColor: '#555', color: '#888' }}>✕</button>
-        </div>
+      {count4pc > 0 && (
+        <span className="stat-pill stat-pill-4pc">✦ {count4pc}× 4pc</span>
+      )}
+      {count2pc > 0 && (
+        <span className="stat-pill stat-pill-2pc">◈ {count2pc}× 2pc</span>
+      )}
+      {countCraft > 0 && (
+        <span className="stat-pill stat-pill-weapon">⚒ {countCraft}× crafted wep</span>
       )}
     </div>
   )
 }
 
-const ghostBtn = {
-  background: 'transparent', border: '1px solid var(--frost-blue)', color: 'var(--frost-blue)',
-  borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer',
-}
-
 // ── MemberCard ───────────────────────────────────────────────────────────────
 
-function MemberCard({ member, region, realm, onSelect }) {
+function MemberCard({ member, region, realm, onSelect, onDataLoaded, onParseLoaded, onDpsLoaded }) {
   const effectiveRealm = member.realm?.trim() || realm
+  const memberKey      = `${region}:${effectiveRealm}:${member.name}`.toLowerCase()
+
   const { data, loading: gearLoading, error: gearError, refresh } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { data: wclData, loading: wclLoading } = useCharacterParses(member.name, effectiveRealm, region)
+  const { dps } = useRaidbotsReport(getStoredReportUrl(memberKey))
 
-  const classColor = CLASS_COLORS[member.class] ?? '#e0e0e0'
+  // Lift data up for summary bar + sorting
+  if (data && onDataLoaded) onDataLoaded(member.name, data)
   const parse = bestParseFromWCL(wclData)
+  if (parse && onParseLoaded) onParseLoaded(member.name, parse.pct)
+  if (dps > 0 && onDpsLoaded) onDpsLoaded(member.name, dps)
 
+  const classColor = CLASS_COLORS[data?.class ?? member.class] ?? '#e0e0e0'
   const ilvl = data?.avgIlvl ?? null
 
   return (
@@ -169,9 +96,9 @@ function MemberCard({ member, region, realm, onSelect }) {
       onClick={onSelect}
       style={{
         background: 'var(--card)', borderRadius: '8px', padding: '1rem',
-        border: '1px solid #2a2a3e', display: 'flex', flexDirection: 'column', gap: '0.6rem',
+        border: '1px solid #2a2a3e', display: 'flex', flexDirection: 'column', gap: '0.55rem',
         minWidth: '220px', flex: '1 1 220px', cursor: 'pointer',
-        transition: 'border-color 0.15s, box-shadow 0.15s',
+        transition: 'border-color 0.15s, box-shadow 0.15s', position: 'relative',
       }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = classColor; e.currentTarget.style.boxShadow = `0 0 12px ${classColor}33` }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a3e'; e.currentTarget.style.boxShadow = 'none' }}
@@ -190,7 +117,7 @@ function MemberCard({ member, region, realm, onSelect }) {
           )}
         </div>
         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          {[member.spec, member.class].filter(Boolean).join(' ') || '—'} · {member.role}
+          {[data?.spec ?? member.spec, data?.class ?? member.class].filter(Boolean).join(' ') || '—'} · {member.role}
         </div>
       </div>
 
@@ -205,19 +132,21 @@ function MemberCard({ member, region, realm, onSelect }) {
         )}
         {ilvl !== null && (
           <>
-            <span style={{ fontSize: '1.4rem', fontWeight: 700, color: ilvlColor(ilvl), lineHeight: 1 }}>{ilvl}</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: ilvlColor(ilvl), lineHeight: 1 }}>{ilvl}</span>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>avg iLvl</span>
           </>
         )}
         {!data && !gearLoading && !gearError && (
-          <button onClick={refresh} style={{ ...ghostBtn, fontSize: '0.8rem' }}>Load data →</button>
+          <button onClick={(e) => { e.stopPropagation(); refresh() }} style={ghostBtn}>Load data →</button>
         )}
       </div>
 
-      {/* Spec (from live data if available) */}
-      {data?.spec && (
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          {data.spec} {data.class}
+      {/* Tier / crafted weapon badges */}
+      {data && (
+        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+          {(data.tierCount ?? 0) >= 4 && <span className="badge badge-4pc">4pc ✦</span>}
+          {(data.tierCount ?? 0) >= 2 && (data.tierCount ?? 0) < 4 && <span className="badge badge-2pc">2pc</span>}
+          {data.hasCraftedWeapon && <span className="badge badge-crafted">⚒ {data.craftedWeaponIlvl}</span>}
         </div>
       )}
 
@@ -226,10 +155,10 @@ function MemberCard({ member, region, realm, onSelect }) {
         {wclLoading && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Fetching parses…</span>}
         {parse && (
           <span style={{
-            fontSize: '0.85rem', fontWeight: 700,
+            fontSize: '1rem', fontWeight: 700,
             color: parseBadgeColor(parse.pct),
             border: `1px solid ${parseBadgeColor(parse.pct)}`,
-            borderRadius: '4px', padding: '0.1rem 0.5rem',
+            borderRadius: '4px', padding: '0.2rem 0.6rem',
           }}>
             {parse.pct}% {parse.diff}
           </span>
@@ -237,21 +166,18 @@ function MemberCard({ member, region, realm, onSelect }) {
         {!wclLoading && !parse && data && (
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No WCL data</span>
         )}
-      </div>
-
-      {/* Gear summary */}
-      {data?.gear && (
-        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', gap: '1rem' }}>
-          <span>{data.gear.length} slots</span>
-          <span style={{ color: 'var(--epic-purple)' }}>
-            {data.gear.filter((g) => g.quality === 'EPIC').length} epic
+        {dps > 0 && (
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a335ee' }}>
+            {(dps / 1000).toFixed(1)}k DPS
           </span>
-        </div>
-      )}
-
-      <div style={{ marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid #1a1a2e', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-        Click to view details →
+        )}
       </div>
+
+      {/* Chevron */}
+      <span style={{
+        position: 'absolute', bottom: '0.7rem', right: '0.9rem',
+        fontSize: '0.85rem', color: 'var(--text-muted)', pointerEvents: 'none',
+      }}>→</span>
     </div>
   )
 }
@@ -259,7 +185,16 @@ function MemberCard({ member, region, realm, onSelect }) {
 // ── GuildOverview ─────────────────────────────────────────────────────────────
 
 export default function GuildOverview({ guild, onSelectMember }) {
-  const [showAlts, setShowAlts] = useState(false)
+  const [showAlts, setShowAlts]   = useState(false)
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [sortBy, setSortBy]       = useState('ilvl')
+  const [memberData, setMemberData] = useState({})
+  const [parseCache, setParseCache] = useState({})
+  const [dpsCache, setDpsCache]     = useState({})
+
+  const onDataLoaded  = useCallback((name, data)  => setMemberData(prev => ({ ...prev, [name]: data })),  [])
+  const onParseLoaded = useCallback((name, pct)   => setParseCache(prev => ({ ...prev, [name]: pct })),   [])
+  const onDpsLoaded   = useCallback((name, dps)   => setDpsCache(prev => ({ ...prev, [name]: dps })),     [])
 
   if (!guild?.members?.length) {
     return (
@@ -272,30 +207,96 @@ export default function GuildOverview({ guild, onSelectMember }) {
     )
   }
 
-  const displayed = showAlts ? guild.members : guild.members.filter((m) => m.isMain !== false)
+  const displayed = guild.members
+    .filter(m => showAlts || m.isMain !== false)
+    .filter(m => roleFilter === 'all' || m.role === roleFilter)
+    .sort((a, b) => {
+      if (sortBy === 'ilvl')  return (memberData[b.name]?.avgIlvl ?? 0) - (memberData[a.name]?.avgIlvl ?? 0)
+      if (sortBy === 'parse') return (parseCache[b.name] ?? 0) - (parseCache[a.name] ?? 0)
+      if (sortBy === 'dps')   return (dpsCache[b.name] ?? 0)  - (dpsCache[a.name] ?? 0)
+      return 0
+    })
 
   return (
     <section style={containerStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      {/* Heading row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <h2 style={{ ...headingStyle, marginBottom: 0 }}>
           {guild.name ? `${guild.name} ` : ''}Guild Overview
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.5rem' }}>
             {guild.realm} · {guild.region.toUpperCase()}
           </span>
         </h2>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={showAlts} onChange={(e) => setShowAlts(e.target.checked)} />
-          Show alts
-        </label>
       </div>
 
+      {/* Summary bar */}
+      <GuildSummaryBar memberData={memberData} />
+
+      {/* Sort / filter bar */}
+      <div className="filter-bar" style={{ marginBottom: '1rem' }}>
+        {/* Role filter */}
+        <div className="filter-group">
+          {[['all', 'All'], ['tank', 'Tank'], ['healer', 'Healer'], ['dps', 'DPS']].map(([key, label]) => (
+            <button
+              key={key}
+              className={`btn btn-toggle${roleFilter === key ? ' active' : ''}`}
+              onClick={() => setRoleFilter(key)}
+            >{label}</button>
+          ))}
+        </div>
+
+        <div className="filter-divider" />
+
+        {/* Sort */}
+        <div className="filter-group">
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: 2 }}>Sort:</span>
+          {[['ilvl', 'iLvl'], ['parse', 'Parse %'], ['dps', 'Sim DPS']].map(([key, label]) => (
+            <button
+              key={key}
+              className={`btn btn-toggle${sortBy === key ? ' active-orange' : ''}`}
+              onClick={() => setSortBy(key)}
+            >{label}</button>
+          ))}
+        </div>
+
+        <div className="filter-divider" />
+
+        {/* Show alts */}
+        <button
+          className={`btn btn-toggle${showAlts ? ' active' : ''}`}
+          onClick={() => setShowAlts(v => !v)}
+        >
+          {showAlts ? 'Hide alts' : 'Show alts'}
+        </button>
+      </div>
+
+      {/* Cards */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-        {displayed.map((m) => (
-          <MemberCard key={m.name} member={m} region={guild.region} realm={guild.realm} onSelect={() => onSelectMember?.(m)} />
+        {displayed.map(m => (
+          <MemberCard
+            key={m.name}
+            member={m}
+            region={guild.region}
+            realm={guild.realm}
+            onSelect={() => onSelectMember?.(m)}
+            onDataLoaded={onDataLoaded}
+            onParseLoaded={onParseLoaded}
+            onDpsLoaded={onDpsLoaded}
+          />
         ))}
+        {displayed.length === 0 && (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No members match this filter.</p>
+        )}
       </div>
     </section>
   )
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const ghostBtn = {
+  background: 'transparent', border: '1px solid var(--frost-blue)', color: 'var(--frost-blue)',
+  borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer',
 }
 
 const containerStyle = {

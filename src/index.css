@@ -564,6 +564,44 @@ body {
   font-size: 13px;
 }
 
+/* ---- Guild summary stat pills ---- */
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+.stat-pill-ilvl   { border-color: var(--frost-blue);       color: var(--frost-blue); }
+.stat-pill-2pc    { border-color: var(--epic-purple);      color: var(--epic-purple); }
+.stat-pill-4pc    { border-color: var(--legendary-orange); color: var(--legendary-orange); }
+.stat-pill-weapon { border-color: var(--frost-blue);       color: var(--frost-blue); }
+
+/* ---- Tier / crafted weapon badges (extend .badge) ---- */
+.badge-2pc     { background: rgba(163,53,238,0.2);   color: var(--epic-purple);      border: 1px solid rgba(163,53,238,0.5); }
+.badge-4pc     { background: rgba(255,128,0,0.2);    color: var(--legendary-orange); border: 1px solid rgba(255,128,0,0.5); }
+.badge-crafted { background: rgba(105,204,255,0.12); color: var(--frost-blue);       border: 1px solid rgba(105,204,255,0.4); }
+
+/* ---- Settings: Characters tab ---- */
+.add-char-form {
+  background: rgba(105,204,255,0.05);
+  border: 1px solid rgba(105,204,255,0.25);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.member-row-alt {
+  margin-left: 18px;
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+}
+
 /* ---- Slot filter indicator ---- */
 .slot-filter-banner {
   display: flex;
