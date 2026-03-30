@@ -101,12 +101,57 @@
     "members": [
       {
         "name": "Whooplol",
-        "class": "Frost Mage",
+        "realName": "Rasmus",
+        "class": "Mage",
+        "spec": "Frost",
         "role": "dps",
         "isMain": true,
-        "alts": [],
-        "simc": null,
-        "notes": ""
+        "realm": ""
+      },
+      {
+        "name": "Krypts",
+        "realName": "Victor",
+        "class": "",
+        "spec": "",
+        "role": "dps",
+        "isMain": true,
+        "realm": ""
+      },
+      {
+        "name": "Mufuzu",
+        "realName": "Simon",
+        "class": "",
+        "spec": "",
+        "role": "dps",
+        "isMain": true,
+        "realm": ""
+      },
+      {
+        "name": "Hellmeister",
+        "realName": "Svendsen",
+        "class": "",
+        "spec": "",
+        "role": "dps",
+        "isMain": true,
+        "realm": ""
+      },
+      {
+        "name": "Chenex",
+        "realName": "Tofte",
+        "class": "",
+        "spec": "",
+        "role": "dps",
+        "isMain": false,
+        "realm": ""
+      },
+      {
+        "name": "Dostoblast",
+        "realName": "Victor",
+        "class": "",
+        "spec": "",
+        "role": "dps",
+        "isMain": false,
+        "realm": ""
       }
     ]
   }

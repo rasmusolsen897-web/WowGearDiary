@@ -179,12 +179,19 @@ function MemberCard({ member, region, realm, onSelect }) {
       {/* Name + class */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontWeight: 700, fontSize: '1rem', color: classColor }}>{member.name}</span>
+          <div>
+            <span style={{ fontWeight: 700, fontSize: '1rem', color: classColor }}>{member.name}</span>
+            {member.realName && (
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>({member.realName})</span>
+            )}
+          </div>
           {!member.isMain && (
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', border: '1px solid #444', borderRadius: '3px', padding: '0.1rem 0.4rem' }}>alt</span>
           )}
         </div>
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{member.class} · {member.role}</div>
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          {[member.spec, member.class].filter(Boolean).join(' ') || '—'} · {member.role}
+        </div>
       </div>
 
       {/* iLvl */}

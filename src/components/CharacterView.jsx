@@ -3,7 +3,7 @@ import { useStorage } from '../hooks/index.js'
 import { useBlizzardAPI, useBlizzardMedia } from '../hooks/useBlizzardAPI.js'
 import { useCharacterParses } from '../hooks/useWCLAPI.js'
 import { useRaidbotsReport, getStoredReportUrl, setStoredReportUrl } from '../hooks/useRaidbotsReport.js'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import TierProgress from './TierProgress.jsx'
 import GearSlots from './GearSlots.jsx'
 import SimTable from './SimTable.jsx'
@@ -52,14 +52,21 @@ function bestParse(wclData) {
 
 // ── RaidbotsSection ───────────────────────────────────────────────────────────
 
-function RaidbotsSection({ member, region, realm }) {
+function RaidbotsSection({ member, region, realm, onUpdateMember }) {
   const memberKey   = `${region}:${realm}:${member.name}`.toLowerCase()
   const [reportUrl, setReportUrl] = useState(() => getStoredReportUrl(memberKey))
   const [editing, setEditing]     = useState(false)
   const [draft, setDraft]         = useState('')
 
-  const { dps, loading, error } = useRaidbotsReport(reportUrl)
+  const { dps, spec: reportSpec, loading, error } = useRaidbotsReport(reportUrl)
   const deepLink = `https://www.raidbots.com/simbot/quick?region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(member.name)}`
+
+  // Auto-learn spec/role from report once it loads
+  useEffect(() => {
+    if (reportSpec && onUpdateMember) {
+      onUpdateMember(member.name, { spec: reportSpec, role: specToRole(reportSpec) })
+    }
+  }, [reportSpec]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = () => {
     const t = draft.trim()
@@ -127,13 +134,32 @@ function GearList({ gear }) {
 
 // ── CharacterView ─────────────────────────────────────────────────────────────
 
-export default function CharacterView({ member, guild, onBack }) {
+function specToRole(spec) {
+  const tanks   = ['Protection', 'Blood', 'Brewmaster', 'Vengeance', 'Guardian']
+  const healers = ['Holy', 'Discipline', 'Restoration', 'Mistweaver', 'Preservation']
+  if (tanks.some(t => spec?.includes(t)))   return 'tank'
+  if (healers.some(h => spec?.includes(h))) return 'healer'
+  return 'dps'
+}
+
+export default function CharacterView({ member, guild, onBack, onUpdateMember }) {
   const effectiveRealm = member.realm?.trim() || guild.realm
   const region         = guild.region
 
   const { data: bliz, loading: gearLoading, error: gearError } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { avatarUrl }  = useBlizzardMedia(member.name, effectiveRealm, region)
   const { data: wcl }  = useCharacterParses(member.name, effectiveRealm, region)
+
+  // Auto-learn class/spec/role from Blizzard API
+  const blizSpec  = bliz?.spec  ?? null
+  const blizClass = bliz?.class ?? null
+  if (bliz && onUpdateMember && (blizSpec !== member.spec || blizClass !== member.class)) {
+    onUpdateMember(member.name, {
+      class: blizClass ?? member.class,
+      spec:  blizSpec  ?? member.spec,
+      role:  specToRole(blizSpec) ?? member.role,
+    })
+  }
 
   // Sim table state (only relevant for the main character with hardcoded data)
   const [activeTab, setActiveTab]     = useStorage('tab', 'raid')
@@ -172,7 +198,10 @@ export default function CharacterView({ member, guild, onBack }) {
         {/* Info */}
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: classColor, letterSpacing: '0.03em' }}>{bliz?.name ?? member.name}</h2>
+            <h2 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: classColor, letterSpacing: '0.03em' }}>
+              {bliz?.name ?? member.name}
+              {member.realName && <span style={{ fontSize: 16, fontWeight: 400, color: 'var(--text-muted)', marginLeft: '0.5rem' }}>({member.realName})</span>}
+            </h2>
             {parse && (
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: parseBadgeColor(parse.pct), border: `1px solid ${parseBadgeColor(parse.pct)}`, borderRadius: 4, padding: '0.15rem 0.5rem' }}>
                 {parse.pct}% {parse.diff}

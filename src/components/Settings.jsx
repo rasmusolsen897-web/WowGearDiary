@@ -90,6 +90,12 @@ function MemberRow({ member, onChange, onRemove }) {
         style={inputStyle}
       />
       <input
+        value={member.realName ?? ''}
+        onChange={(e) => onChange({ ...member, realName: e.target.value })}
+        placeholder="Real name"
+        style={{ ...inputStyle, flex: 1 }}
+      />
+      <input
         value={member.realm ?? ''}
         onChange={(e) => onChange({ ...member, realm: e.target.value })}
         placeholder="Realm (blank = guild default)"
@@ -153,7 +159,7 @@ export default function Settings({ open, onClose, guild, onGuildChange }) {
       ...g,
       members: [
         ...g.members,
-        { name: '', class: '', role: 'dps', isMain: true, alts: [], simc: null, notes: '' },
+        { name: '', realName: '', class: '', spec: '', role: 'dps', isMain: true, realm: '' },
       ],
     }))
   }
