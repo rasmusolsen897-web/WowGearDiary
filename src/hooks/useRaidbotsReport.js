@@ -41,26 +41,23 @@ function writeCache(key, data) {
  * Returns { dps, characterName, spec, reportId, loading, error }
  */
 export function useRaidbotsReport(reportUrl) {
-  const [dps, setDps]                   = useState(null)
-  const [characterName, setCharacterName] = useState(null)
-  const [spec, setSpec]                 = useState(null)
-  const [loading, setLoading]           = useState(false)
-  const [error, setError]               = useState(null)
+  const [result, setResult]   = useState({ dps: null, characterName: null, spec: null })
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState(null)
 
   const reportId = reportIdFromUrl(reportUrl)
 
   useEffect(() => {
     if (!reportId) {
-      setDps(null); setCharacterName(null); setSpec(null); setError(null)
+      setResult({ dps: null, characterName: null, spec: null })
+      setError(null)
       return
     }
 
     const key = cacheKey(reportId)
     const cached = readCache(key)
     if (cached) {
-      setDps(cached.dps)
-      setCharacterName(cached.characterName)
-      setSpec(cached.spec)
+      setResult(cached)
       return
     }
 
@@ -85,11 +82,9 @@ export function useRaidbotsReport(reportUrl) {
         const name    = player?.name ?? null
         const specStr = json?.simbot?.meta?.specName ?? null
 
-        const result = { dps: meanDps, characterName: name, spec: specStr }
-        writeCache(key, result)
-        setDps(meanDps)
-        setCharacterName(name)
-        setSpec(specStr)
+        const data = { dps: meanDps, characterName: name, spec: specStr }
+        writeCache(key, data)
+        setResult(data)
       })
       .catch((err) => {
         if (cancelled) return
@@ -102,7 +97,7 @@ export function useRaidbotsReport(reportUrl) {
     return () => { cancelled = true }
   }, [reportId])
 
-  return { dps, characterName, spec, reportId, loading, error }
+  return { ...result, reportId, loading, error }
 }
 
 /**

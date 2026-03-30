@@ -27,7 +27,15 @@ const API_HOST = {
   tw: 'https://tw.api.blizzard.com',
 }
 
+// In-memory token cache — survives within a single serverless instance burst
+let blizTokenCache = { token: null, expiresAt: 0 }
+
 async function getToken(region) {
+  // Return cached token if still valid
+  if (blizTokenCache.token && Date.now() < blizTokenCache.expiresAt) {
+    return { access_token: blizTokenCache.token }
+  }
+
   const clientId     = process.env.BLIZZARD_CLIENT_ID
   const clientSecret = process.env.BLIZZARD_CLIENT_SECRET
 
@@ -52,7 +60,13 @@ async function getToken(region) {
     throw new Error(`Blizzard OAuth failed (${res.status}): ${text}`)
   }
 
-  return res.json()
+  const data = await res.json()
+  // Cache with 60-second safety margin before actual expiry
+  blizTokenCache = {
+    token: data.access_token,
+    expiresAt: Date.now() + ((data.expires_in ?? 3600) - 60) * 1000,
+  }
+  return data
 }
 
 function normalizeSlotType(type) {

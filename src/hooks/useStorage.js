@@ -124,7 +124,7 @@ export function useStorage(key, defaultValue) {
     // Write to URL hash
     const serialized = serializeForHash(value, defaultValue);
     updateHash(key, serialized);
-  }, [key, value, defaultValue]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return [value, setValue];
 }

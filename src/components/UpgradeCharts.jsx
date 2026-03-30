@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import './UpgradeCharts.css';
 
 /**
@@ -8,23 +9,21 @@ import './UpgradeCharts.css';
 export default function UpgradeCharts({ data }) {
   const { gear = [], raidSim = [], mythicSim = [] } = data;
 
-  // ─── Chart 1: DPS% Gain by Slot ───────────────────────────────────────────
+  // ─── Chart 1: DPS% Gain by Slot (memoized) ────────────────────────────────
 
-  // Group raidSim by slot, find max dps per slot
-  const dpsPerSlot = {};
-  for (const item of raidSim) {
-    const slot = item.slot;
-    if (dpsPerSlot[slot] === undefined || item.dps > dpsPerSlot[slot]) {
-      dpsPerSlot[slot] = item.dps;
+  const { dpsSlots, maxDps } = useMemo(() => {
+    const dpsPerSlot = {};
+    for (const item of raidSim) {
+      const slot = item.slot;
+      if (dpsPerSlot[slot] === undefined || item.dps > dpsPerSlot[slot]) {
+        dpsPerSlot[slot] = item.dps;
+      }
     }
-  }
-
-  // Build sorted array (descending by dps), only slots with an upgrade
-  const dpsSlots = Object.entries(dpsPerSlot)
-    .filter(([, dps]) => dps > 0)
-    .sort(([, a], [, b]) => b - a);
-
-  const maxDps = dpsSlots.length > 0 ? dpsSlots[0][1] : 1;
+    const slots = Object.entries(dpsPerSlot)
+      .filter(([, dps]) => dps > 0)
+      .sort(([, a], [, b]) => b - a);
+    return { dpsSlots: slots, maxDps: slots.length > 0 ? slots[0][1] : 1 };
+  }, [raidSim]);
 
   function dpsBarColor(dps) {
     if (dps >= 2) return 'var(--success)';
@@ -38,36 +37,30 @@ export default function UpgradeCharts({ data }) {
   const ILVL_MAX = 290;
   const ILVL_RANGE = ILVL_MAX - ILVL_MIN;
 
-  // Build a map: slot → best available ilvl (raidSim + mythicSim combined)
-  const bestAvailableBySlot = {};
-  const allSims = [...raidSim, ...mythicSim];
-  for (const item of allSims) {
-    const slot = item.slot;
-    if (bestAvailableBySlot[slot] === undefined || item.ilvl > bestAvailableBySlot[slot]) {
-      bestAvailableBySlot[slot] = item.ilvl;
+  // Build chart rows (memoized) — slot → current iLvl vs best available
+  const ilvlRows = useMemo(() => {
+    const bestAvailableBySlot = {};
+    const allSims = [...raidSim, ...mythicSim];
+    for (const item of allSims) {
+      const slot = item.slot;
+      if (bestAvailableBySlot[slot] === undefined || item.ilvl > bestAvailableBySlot[slot]) {
+        bestAvailableBySlot[slot] = item.ilvl;
+      }
     }
-  }
 
-  // Build chart rows for every gear slot that appears in gear[]
-  const ilvlRows = gear.map((g) => {
-    const currentIlvl = g.ilvl;
-    const bestIlvl = bestAvailableBySlot[g.slot] ?? null;
-    const isBis = bestIlvl !== null && bestIlvl <= currentIlvl;
+    return gear.map((g) => {
+      const currentIlvl = g.ilvl;
+      const bestIlvl = bestAvailableBySlot[g.slot] ?? null;
+      const isBis = bestIlvl !== null && bestIlvl <= currentIlvl;
 
-    const currentPct = Math.max(0, Math.min(100, ((currentIlvl - ILVL_MIN) / ILVL_RANGE) * 100));
-    const bestPct = bestIlvl !== null
-      ? Math.max(0, Math.min(100, ((bestIlvl - ILVL_MIN) / ILVL_RANGE) * 100))
-      : 0;
+      const currentPct = Math.max(0, Math.min(100, ((currentIlvl - ILVL_MIN) / ILVL_RANGE) * 100));
+      const bestPct = bestIlvl !== null
+        ? Math.max(0, Math.min(100, ((bestIlvl - ILVL_MIN) / ILVL_RANGE) * 100))
+        : 0;
 
-    return {
-      slot: g.slot,
-      currentIlvl,
-      bestIlvl,
-      isBis,
-      currentPct,
-      bestPct,
-    };
-  });
+      return { slot: g.slot, currentIlvl, bestIlvl, isBis, currentPct, bestPct };
+    });
+  }, [gear, raidSim, mythicSim]);
 
   function ilvlQualityColor(ilvl) {
     if (ilvl === null) return 'var(--text-muted)';

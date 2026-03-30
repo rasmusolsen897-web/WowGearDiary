@@ -26,6 +26,8 @@ function normalizeSlot(slot) {
   return slot
 }
 
+import { useMemo } from 'react'
+
 export default function SimTable({
   raidSim, mythicSim, activeTab, onTabChange,
   selectedSlot, onClearSlot,
@@ -34,7 +36,7 @@ export default function SimTable({
   showCatalyst, onShowCatalyst,
 }) {
   const rawData = activeTab === 'raid' ? raidSim : mythicSim
-  const maxDps = Math.max(...rawData.map(r => r.dps))
+  const maxDps = useMemo(() => Math.max(...rawData.map(r => r.dps)), [rawData])
 
   // Apply filters
   let filtered = rawData

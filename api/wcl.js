@@ -11,7 +11,15 @@
 const WCL_OAUTH_URL = 'https://www.warcraftlogs.com/oauth/token'
 const WCL_API_URL   = 'https://www.warcraftlogs.com/api/v2/client'
 
+// In-memory token cache — survives within a single serverless instance burst
+let wclTokenCache = { token: null, expiresAt: 0 }
+
 async function getWCLToken() {
+  // Return cached token if still valid
+  if (wclTokenCache.token && Date.now() < wclTokenCache.expiresAt) {
+    return wclTokenCache.token
+  }
+
   const clientId     = process.env.WCL_CLIENT_ID
   const clientSecret = process.env.WCL_CLIENT_SECRET
 
@@ -35,8 +43,13 @@ async function getWCLToken() {
     throw new Error(`WCL OAuth failed (${res.status}): ${text}`)
   }
 
-  const { access_token } = await res.json()
-  return access_token
+  const data = await res.json()
+  // Cache with 60-second safety margin before actual expiry
+  wclTokenCache = {
+    token: data.access_token,
+    expiresAt: Date.now() + ((data.expires_in ?? 3600) - 60) * 1000,
+  }
+  return data.access_token
 }
 
 export default async function handler(req, res) {

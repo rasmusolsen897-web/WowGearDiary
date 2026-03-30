@@ -4,7 +4,7 @@ import { useBlizzardAPI, useBlizzardMedia } from '../hooks/useBlizzardAPI.js'
 import { useCharacterParses } from '../hooks/useWCLAPI.js'
 import { useRaidbotsReport, getStoredReportUrl, setStoredReportUrl } from '../hooks/useRaidbotsReport.js'
 import { useDroptimizerReport, getStoredDroptimizerUrl, setStoredDroptimizerUrl } from '../hooks/useDroptimizerReport.js'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import TierProgress from './TierProgress.jsx'
 import GearSlots from './GearSlots.jsx'
 import SimTable from './SimTable.jsx'
@@ -154,12 +154,15 @@ function DroptimizerSection({ member, region, realm }) {
     setSortKey(key)
   }
 
-  const sorted = upgrades ? [...upgrades].sort((a, b) => {
-    const av = a[sortKey] ?? 0
-    const bv = b[sortKey] ?? 0
-    if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
-    return sortDir === 'asc' ? av - bv : bv - av
-  }) : []
+  const sorted = useMemo(() => {
+    if (!upgrades) return []
+    return [...upgrades].sort((a, b) => {
+      const av = a[sortKey] ?? 0
+      const bv = b[sortKey] ?? 0
+      if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+      return sortDir === 'asc' ? av - bv : bv - av
+    })
+  }, [upgrades, sortKey, sortDir])
 
   const COLS = [
     { key: 'name',      label: 'Item' },
@@ -324,16 +327,18 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
   const { avatarUrl }  = useBlizzardMedia(member.name, effectiveRealm, region)
   const { data: wcl }  = useCharacterParses(member.name, effectiveRealm, region)
 
-  // Auto-learn class/spec/role from Blizzard API
-  const blizSpec  = bliz?.spec  ?? null
-  const blizClass = bliz?.class ?? null
-  if (bliz && onUpdateMember && (blizSpec !== member.spec || blizClass !== member.class)) {
-    onUpdateMember(member.name, {
-      class: blizClass ?? member.class,
-      spec:  blizSpec  ?? member.spec,
-      role:  specToRole(blizSpec) ?? member.role,
-    })
-  }
+  // Auto-learn class/spec/role from Blizzard API (in useEffect, not during render)
+  useEffect(() => {
+    const blizSpec  = bliz?.spec  ?? null
+    const blizClass = bliz?.class ?? null
+    if (bliz && onUpdateMember && (blizSpec !== member.spec || blizClass !== member.class)) {
+      onUpdateMember(member.name, {
+        class: blizClass ?? member.class,
+        spec:  blizSpec  ?? member.spec,
+        role:  specToRole(blizSpec) ?? member.role,
+      })
+    }
+  }, [bliz?.spec, bliz?.class]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sim table state (only relevant for the main character with hardcoded data)
   const [activeTab, setActiveTab]     = useStorage('tab', 'raid')
@@ -353,14 +358,14 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
   return (
     <div className="app-container">
       {/* Back button */}
-      <div style={{ marginBottom: '1rem' }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: '1px solid #444', color: 'var(--text-muted)', borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13 }}>
+      <div style={backBtnWrap}>
+        <button onClick={onBack} style={backBtnStyle}>
           ← Back to guild
         </button>
       </div>
 
       {/* Character hero */}
-      <div style={{ background: 'linear-gradient(135deg, #111128 0%, #1a1a35 60%, #0d1520 100%)', borderRadius: 10, border: '1px solid var(--border)', padding: '1.5rem', marginBottom: '1.5rem', display: 'flex', gap: '1.25rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div style={heroStyle}>
         {/* Avatar */}
         <div style={{ width: 80, height: 80, borderRadius: 8, flexShrink: 0, overflow: 'hidden', border: `2px solid ${classColor}`, boxShadow: `0 0 16px ${classColor}44` }}>
           {avatarUrl
@@ -473,4 +478,18 @@ const ghostBtn = {
 const purpleBtn = {
   fontSize: '0.82rem', color: '#a335ee', textDecoration: 'none',
   border: '1px solid #a335ee', borderRadius: 4, padding: '0.3rem 0.7rem',
+}
+
+const backBtnWrap = { marginBottom: '1rem' }
+
+const backBtnStyle = {
+  background: 'transparent', border: '1px solid #444', color: 'var(--text-muted)',
+  borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13,
+}
+
+const heroStyle = {
+  background: 'linear-gradient(135deg, #111128 0%, #1a1a35 60%, #0d1520 100%)',
+  borderRadius: 10, border: '1px solid var(--border)', padding: '1.5rem',
+  marginBottom: '1.5rem', display: 'flex', gap: '1.25rem',
+  alignItems: 'flex-start', flexWrap: 'wrap',
 }
