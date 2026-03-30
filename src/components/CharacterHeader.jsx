@@ -1,6 +1,6 @@
 import ShareButton from './ShareButton.jsx'
 
-export default function CharacterHeader({ character }) {
+export default function CharacterHeader({ character, onSettingsClick }) {
   const charges = character.catalystCharges
   const maxCharges = 8
 
@@ -43,6 +43,16 @@ export default function CharacterHeader({ character }) {
               {character.class}
             </span>
             <ShareButton />
+            <button
+              onClick={onSettingsClick}
+              title="Settings"
+              style={{
+                background: 'transparent', border: '1px solid #444', color: 'var(--text-muted)',
+                borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: 14, lineHeight: 1,
+              }}
+            >
+              ⚙
+            </button>
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', color: 'var(--text-muted)', fontSize: 13 }}>

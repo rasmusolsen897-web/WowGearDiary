@@ -93,5 +93,21 @@
       "Goal: 2-piece bonus active",
       "Re-sim with new gear"
     ]
+  },
+  "guild": {
+    "name": "",
+    "region": "eu",
+    "realm": "tarren-mill",
+    "members": [
+      {
+        "name": "Whooplol",
+        "class": "Frost Mage",
+        "role": "dps",
+        "isMain": true,
+        "alts": [],
+        "simc": null,
+        "notes": ""
+      }
+    ]
   }
 }
