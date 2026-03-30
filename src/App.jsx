@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import data from './data.json'
 import GuildHeader from './components/GuildHeader.jsx'
 import GuildOverview from './components/GuildOverview.jsx'
 import CharacterView from './components/CharacterView.jsx'
 import Settings from './components/Settings.jsx'
 
-const GUILD_STORAGE_KEY = 'wow-gear-diary:guild'
+const GUILD_STORAGE_KEY  = 'wow-gear-diary:guild'
+const TOKEN_STORAGE_KEY  = 'wow-gear-diary:write-token'
 
 function loadGuild() {
   try {
@@ -25,14 +26,79 @@ function saveGuild(guild) {
   try { localStorage.setItem(GUILD_STORAGE_KEY, JSON.stringify(guild)) } catch {}
 }
 
+function loadWriteToken() {
+  try { return localStorage.getItem(TOKEN_STORAGE_KEY) ?? '' } catch { return '' }
+}
+
+function saveWriteToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_STORAGE_KEY, token)
+    else localStorage.removeItem(TOKEN_STORAGE_KEY)
+  } catch {}
+}
+
+async function postGuildToApi(guild, token) {
+  const res = await fetch('/api/guild', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Write-Token': token },
+    body: JSON.stringify(guild),
+  })
+  return res
+}
+
 export default function App() {
   const [guild, setGuildState]              = useState(loadGuild)
   const [selectedMember, setSelectedMember] = useState(null)
   const [settingsOpen, setSettingsOpen]     = useState(false)
+  const [writeToken, setWriteTokenState]    = useState(loadWriteToken)
+  const [syncError, setSyncError]           = useState(null) // null | string
+  const [syncStatus, setSyncStatus]         = useState('idle') // 'idle' | 'syncing' | 'ok' | 'error'
 
-  function setGuild(updated) {
-    setGuildState(updated)
-    saveGuild(updated)
+  // Keep a ref to the current writeToken so the setGuild closure always sees the latest value
+  const writeTokenRef = useRef(writeToken)
+  useEffect(() => { writeTokenRef.current = writeToken }, [writeToken])
+
+  // On mount: fetch the latest guild from the API and use it as source of truth
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/guild', { signal: controller.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(remote => {
+        if (remote?.members?.length) {
+          setGuildState(remote)
+          saveGuild(remote)
+        }
+      })
+      .catch(() => {}) // silently fall back to localStorage
+    return () => controller.abort()
+  }, [])
+
+  // Central setter — writes to localStorage and (if token set) syncs to API
+  function setGuild(updaterOrValue) {
+    setGuildState(prev => {
+      const updated = typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue
+      saveGuild(updated)
+      const token = writeTokenRef.current
+      if (token) {
+        setSyncStatus('syncing')
+        postGuildToApi(updated, token).then(res => {
+          if (res.status === 401) {
+            setSyncStatus('error')
+            setSyncError('Wrong password — changes saved locally only. Re-enter in Settings → Guild.')
+          } else if (res.ok) {
+            setSyncStatus('ok')
+            setSyncError(null)
+          } else {
+            setSyncStatus('error')
+            setSyncError('Sync failed — changes saved locally.')
+          }
+        }).catch(() => {
+          setSyncStatus('error')
+          setSyncError('Sync failed — check your connection.')
+        })
+      }
+      return updated
+    })
   }
 
   // Keep selectedMember in sync when guild changes (e.g. after Settings save)
@@ -57,6 +123,24 @@ export default function App() {
     }
   }
 
+  function handleWriteTokenChange(token) {
+    setWriteTokenState(token)
+    writeTokenRef.current = token
+    saveWriteToken(token)
+    if (!token) { setSyncError(null); setSyncStatus('idle') }
+  }
+
+  const settingsProps = {
+    open: settingsOpen,
+    onClose: () => setSettingsOpen(false),
+    guild,
+    onGuildChange: handleGuildChange,
+    writeToken,
+    onWriteTokenChange: handleWriteTokenChange,
+    syncError,
+    syncStatus,
+  }
+
   if (selectedMember) {
     return (
       <>
@@ -67,12 +151,7 @@ export default function App() {
           onBack={() => setSelectedMember(null)}
           onUpdateMember={updateMember}
         />
-        <Settings
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          guild={guild}
-          onGuildChange={handleGuildChange}
-        />
+        <Settings {...settingsProps} />
       </>
     )
   }
@@ -86,12 +165,7 @@ export default function App() {
           onSelectMember={setSelectedMember}
         />
       </div>
-      <Settings
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        guild={guild}
-        onGuildChange={handleGuildChange}
-      />
+      <Settings {...settingsProps} />
     </>
   )
 }

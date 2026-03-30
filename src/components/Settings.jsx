@@ -240,16 +240,45 @@ function AddCharForm({ mainNames, onAdd, onCancel }) {
 
 // ── Main Settings Component ───────────────────────────────────────────────────
 
-export default function Settings({ open, onClose, guild, onGuildChange }) {
-  const [localGuild, setLocalGuild] = useState(guild)
-  const [activeTab, setActiveTab]   = useState('guild')
+export default function Settings({ open, onClose, guild, onGuildChange, writeToken, onWriteTokenChange, syncError, syncStatus }) {
+  const [localGuild, setLocalGuild]   = useState(guild)
+  const [activeTab, setActiveTab]     = useState('guild')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [tokenDraft, setTokenDraft]   = useState('')
+  const [unlockState, setUnlockState] = useState('idle') // 'idle' | 'checking' | 'ok' | 'wrong'
 
   useEffect(() => { setLocalGuild(guild) }, [guild])
 
   if (!open) return null
 
   const save = () => { onGuildChange(localGuild); onClose() }
+
+  const handleUnlock = async () => {
+    if (!tokenDraft.trim()) return
+    setUnlockState('checking')
+    try {
+      const res = await fetch('/api/guild', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Write-Token': tokenDraft.trim() },
+        body: JSON.stringify(localGuild),
+      })
+      if (res.ok) {
+        onWriteTokenChange(tokenDraft.trim())
+        setTokenDraft('')
+        setUnlockState('ok')
+      } else {
+        setUnlockState('wrong')
+      }
+    } catch {
+      setUnlockState('wrong')
+    }
+  }
+
+  const handleLock = () => {
+    onWriteTokenChange('')
+    setUnlockState('idle')
+    setTokenDraft('')
+  }
 
   const updateMember = (i, updated) => {
     setLocalGuild(g => { const members = [...g.members]; members[i] = updated; return { ...g, members } })
@@ -356,6 +385,66 @@ export default function Settings({ open, onClose, guild, onGuildChange }) {
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Set a default realm here. Individual characters can override it in the Characters tab.
               </p>
+
+              {/* ── Cloud Sync ── */}
+              <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #333' }}>
+                <h3 style={sectionTitleStyle}>☁ Cloud Sync</h3>
+
+                {writeToken ? (
+                  /* ── Unlocked state ── */
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '1rem' }}>🔓</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--success)', fontWeight: 600 }}>Editing enabled</span>
+                      {syncStatus === 'syncing' && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>syncing…</span>}
+                      {syncStatus === 'ok'      && <span style={{ fontSize: '0.75rem', color: 'var(--success)' }}>✓ synced</span>}
+                      {syncStatus === 'error'   && <span style={{ fontSize: '0.75rem', color: '#ff4444' }}>✗ sync error</span>}
+                      <button onClick={handleLock} style={{ ...actionBtn, marginLeft: 'auto', borderColor: '#555', color: '#aaa', fontSize: '0.75rem' }}>
+                        Lock
+                      </button>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                      Changes you make sync to all guild members. Share the password with guildies who need to edit.
+                    </p>
+                    {syncError && (
+                      <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.6rem', background: 'rgba(255,68,68,0.1)', borderRadius: '4px', fontSize: '0.78rem', color: '#ff7070' }}>
+                        ⚠ {syncError}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* ── Locked state ── */
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '1rem' }}>🔒</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Read-only</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>— enter the guild password to enable editing</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        type="password"
+                        value={tokenDraft}
+                        onChange={(e) => { setTokenDraft(e.target.value); setUnlockState('idle') }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+                        placeholder="Guild password"
+                        style={{ ...inputStyle, flex: 1 }}
+                      />
+                      <button
+                        onClick={handleUnlock}
+                        disabled={unlockState === 'checking' || !tokenDraft.trim()}
+                        style={{ ...actionBtn, borderColor: 'var(--frost-blue)', color: 'var(--frost-blue)', whiteSpace: 'nowrap', opacity: (!tokenDraft.trim() || unlockState === 'checking') ? 0.5 : 1 }}
+                      >
+                        {unlockState === 'checking' ? '…' : 'Unlock'}
+                      </button>
+                    </div>
+                    {unlockState === 'wrong' && (
+                      <div style={{ marginTop: '0.4rem', fontSize: '0.78rem', color: '#ff4444' }}>
+                        ✗ Wrong password — ask the guild admin.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
@@ -404,6 +493,10 @@ export default function Settings({ open, onClose, guild, onGuildChange }) {
                 endpoint="/api/wcl"
                 method="POST"
                 body={{ query: '{ worldData { zone(id: 41) { id name } } }' }}
+              />
+              <ApiStatusRow
+                label="Guild Sync — KV read"
+                endpoint="/api/guild"
               />
             </section>
           )}
