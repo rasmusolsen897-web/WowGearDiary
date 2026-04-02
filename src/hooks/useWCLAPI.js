@@ -8,7 +8,7 @@ function readCache(key) {
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
     if (Date.now() - ts > CACHE_TTL) return null
-    return data
+    return { data, ts }
   } catch {
     return null
   }
@@ -30,10 +30,11 @@ function writeCache(key, data) {
  * Pass null/undefined for query to skip the request entirely.
  */
 export function useWCLAPI(query, variables = {}, cacheId = null) {
-  const [data, setData]       = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
-  const [tick, setTick]       = useState(0)
+  const [data, setData]           = useState(null)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState(null)
+  const [tick, setTick]           = useState(0)
+  const [fetchedAt, setFetchedAt] = useState(null)
 
   const variablesRef = useRef(variables)
   variablesRef.current = variables
@@ -44,7 +45,8 @@ export function useWCLAPI(query, variables = {}, cacheId = null) {
     const key = cacheId ? `wcl:${cacheId}` : `wcl:${btoa(query).slice(0, 40)}`
     const cached = readCache(key)
     if (cached) {
-      setData(cached)
+      setData(cached.data)
+      setFetchedAt(cached.ts)
       return
     }
 
@@ -75,6 +77,7 @@ export function useWCLAPI(query, variables = {}, cacheId = null) {
         }
         writeCache(key, json)
         setData(json)
+        setFetchedAt(Date.now())
       })
       .catch((err) => {
         if (cancelled) return
@@ -95,7 +98,7 @@ export function useWCLAPI(query, variables = {}, cacheId = null) {
     setTick((t) => t + 1)
   }
 
-  return { data, loading, error, refresh }
+  return { data, loading, error, refresh, fetchedAt }
 }
 
 // ── Convenience: character parses for recent tier ────────────────────────────
@@ -125,7 +128,7 @@ export function useCharacterParses(name, realm, region = 'eu', zoneID = null) {
   const variables = { name, serverSlug: realm, serverRegion: region, zoneID }
   const cacheId   = `parses:${region}:${realm}:${name}:${zoneID ?? 'auto'}`.toLowerCase()
 
-  const { data, loading, error, refresh } = useWCLAPI(
+  const { data, loading, error, refresh, fetchedAt } = useWCLAPI(
     name && realm ? CHARACTER_RANKINGS_QUERY : null,
     variables,
     cacheId,
@@ -136,5 +139,6 @@ export function useCharacterParses(name, realm, region = 'eu', zoneID = null) {
     loading,
     error,
     refresh,
+    fetchedAt,
   }
 }
