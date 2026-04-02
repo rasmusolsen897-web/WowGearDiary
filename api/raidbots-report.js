@@ -2,9 +2,59 @@
  * api/raidbots-report.js — Proxy for public Raidbots report data
  *
  * GET /api/raidbots-report?id=REPORT_ID
- *   → GET https://www.raidbots.com/simbot/report/{id}/data.json
- *   → returns the SimC JSON (no auth required — reports are public)
+ *
+ * Detection strategy (Raidbots removed the `simbot` wrapper from data.json ~2025):
+ *   1. Fetch /data.csv — lightweight, always present
+ *   2. If CSV rows contain slash-delimited item profiles → Droptimizer
+ *      Parse items from CSV, return compact normalized shape
+ *   3. If only a baseline row → Quick Sim
+ *      Fall through to data.json, return raw for the hook to read
+ *
+ * Droptimizer CSV row name format:
+ *   encounterSourceId/encounterNpcId/difficulty/itemId/itemLevel/bonusId/slot///
+ *   e.g. "1308/2740/raid-heroic/249920/276/7967/finger2///"
  */
+
+const SLOT_NAMES = new Set([
+  'head', 'neck', 'shoulder', 'back', 'chest', 'wrist', 'hands',
+  'waist', 'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2',
+  'mainhand', 'offhand', 'ranged',
+])
+
+/** Parse a simple CSV line into an array of trimmed strings */
+function parseCSVLine(line) {
+  return line.split(',').map(c => c.trim())
+}
+
+/** Parse full CSV text → array of string arrays (including header row) */
+function parseCSV(text) {
+  return text.trim().split('\n').map(parseCSVLine)
+}
+
+/**
+ * Parse the slash-delimited Droptimizer sim name into structured fields.
+ * Format: encounterSourceId/encounterNpcId/difficulty/itemId/itemLevel/bonusId/slot
+ */
+function parseSimName(name) {
+  const parts = name.split('/')
+
+  // Difficulty segment matches known prefixes
+  const diffIdx = parts.findIndex(p => /^(raid-|mythic-plus|world-boss|pvp|vault)/i.test(p))
+  const source = diffIdx >= 0
+    ? parts[diffIdx].replace(/-/g, ' ')
+    : ''
+
+  // itemId is immediately after the difficulty segment
+  const itemId = diffIdx >= 0 ? parseInt(parts[diffIdx + 1], 10) || 0 : 0
+
+  // itemLevel is 2 segments after difficulty
+  const itemLevel = diffIdx >= 0 ? parseInt(parts[diffIdx + 2], 10) || 0 : 0
+
+  // Slot matches a known slot name anywhere in the path
+  const slot = parts.find(p => SLOT_NAMES.has(p)) ?? ''
+
+  return { itemId, itemLevel, slot, source }
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -14,76 +64,77 @@ export default async function handler(req, res) {
   const { id } = req.query
   if (!id) return res.status(400).json({ error: 'id query param required' })
 
+  const baseUrl = `https://www.raidbots.com/simbot/report/${id}`
+
   try {
-    const upstream = await fetch(`https://www.raidbots.com/simbot/report/${id}/data.json`, {
+    // ── Step 1: Fetch CSV (lightweight, always available) ────────────────────
+    const csvRes = await fetch(`${baseUrl}/data.csv`, {
       headers: { 'User-Agent': 'WowGearDiary/1.0' },
     })
 
-    if (!upstream.ok) {
-      return res.status(upstream.status).json({ error: `Report not found (${upstream.status})` })
+    if (!csvRes.ok) {
+      return res.status(csvRes.status).json({ error: `Report not found (${csvRes.status})` })
     }
 
-    const data = await upstream.json()
+    const csvText = await csvRes.text()
+    const [_header, ...dataRows] = parseCSV(csvText)
 
-    // ── Droptimizer: parse server-side, return compact shape ──────────────────
-    if (data?.simbot?.type === 'droptimizer') {
-      const baseDps = Math.round(data?.sim?.players?.[0]?.collected_data?.dps?.mean ?? 0)
+    const baselineRow = dataRows.find(r => !r[0]?.includes('/'))
+    const itemRows    = dataRows.filter(r => r[0]?.includes('/'))
 
-      // Primary path: simbot.droptimizer.upgrades[]
-      let upgrades = null
-      const raw = data?.simbot?.droptimizer?.upgrades
-      if (Array.isArray(raw) && raw.length) {
-        upgrades = raw.map(u => ({
-          itemId:    u.id ?? 0,
-          name:      u.name ?? 'Unknown',
-          slot:      u.slot ?? '',
-          itemLevel: u.itemLevel ?? 0,
-          dpsDelta:  Math.round(u.dps ?? 0),
-          dpsPct:    baseDps > 0 ? Math.round((u.dps ?? 0) / baseDps * 10000) / 100 : 0,
-          source:    u.sourceName ?? u.source ?? '',
-        }))
-      }
+    // ── Step 2: Droptimizer — item rows present ───────────────────────────────
+    if (itemRows.length > 0) {
+      const characterName = baselineRow?.[0] ?? null
+      const baseDps       = parseFloat(baselineRow?.[1] ?? '0') || 0
 
-      // Fallback path: sim.profilesets.results[]
-      if (!upgrades) {
-        const results = data?.sim?.profilesets?.results
-        if (Array.isArray(results) && results.length) {
-          upgrades = results
-            .filter(r => typeof r.mean === 'number')
-            .map(r => {
-              const parts = (r.name ?? '').split('/')
-              const slot  = (parts[1] ?? '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-              const delta = Math.round(r.mean)
-              return {
-                itemId:    parseInt(parts[2] ?? '0', 10),
-                name:      `Item ${parts[2] ?? '?'}`,
-                slot,
-                itemLevel: 0,
-                dpsDelta:  delta,
-                dpsPct:    baseDps > 0 ? Math.round(delta / baseDps * 10000) / 100 : 0,
-                source:    '',
-              }
-            })
-        }
-      }
+      const upgrades = itemRows
+        .map(row => {
+          const { itemId, itemLevel, slot, source } = parseSimName(row[0])
+          const dps      = parseFloat(row[1]) || 0
+          const dpsDelta = Math.round(dps - baseDps)
+          const dpsPct   = baseDps > 0
+            ? Math.round(dpsDelta / baseDps * 10000) / 100
+            : 0
+          return {
+            itemId,
+            name:     `Item ${itemId}`,
+            slot,
+            itemLevel,
+            dpsDelta,
+            dpsPct,
+            source,
+          }
+        })
+        .sort((a, b) => b.dpsDelta - a.dpsDelta)
 
-      upgrades = (upgrades ?? []).sort((a, b) => b.dpsDelta - a.dpsDelta)
+      // Infer difficulty from first item row
+      const difficulty = itemRows[0][0].split('/')
+        .find(p => /^(raid-|mythic-plus|world-boss|pvp)/i.test(p)) ?? null
 
       res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
       return res.status(200).json({
-        type:          'droptimizer',
-        characterName: data?.sim?.players?.[0]?.name ?? null,
-        spec:          data?.simbot?.meta?.specName ?? null,
-        baseDps,
-        difficulty:    data?.simbot?.droptimizer?.difficulty ?? null,
+        type: 'droptimizer',
+        characterName,
+        spec:       null,           // not available in CSV
+        baseDps:    Math.round(baseDps),
+        difficulty,
         upgrades,
       })
     }
 
-    // ── All other report types (Quick Sim, Top Gear, etc.) ───────────────────
-    // Cache for 1 hour — report data never changes once complete
+    // ── Step 3: Quick Sim — fall back to data.json ───────────────────────────
+    const jsonRes = await fetch(`${baseUrl}/data.json`, {
+      headers: { 'User-Agent': 'WowGearDiary/1.0' },
+    })
+
+    if (!jsonRes.ok) {
+      return res.status(jsonRes.status).json({ error: `Report not found (${jsonRes.status})` })
+    }
+
+    const data = await jsonRes.json()
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
     return res.status(200).json(data)
+
   } catch (err) {
     console.error('[api/raidbots-report]', err.message)
     return res.status(500).json({ error: err.message })

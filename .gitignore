@@ -2,3 +2,5 @@ node_modules/
 dist/
 .DS_Store
 *.local
+# MCP config may contain auth tokens — keep out of git
+.mcp.json
