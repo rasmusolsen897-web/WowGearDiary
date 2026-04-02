@@ -13,61 +13,7 @@
  *   → returns { avatarUrl } (character portrait)
  */
 
-const OAUTH_HOST = {
-  eu: 'https://oauth.battle.net',
-  us: 'https://oauth.battle.net',
-  kr: 'https://kr.battle.net/oauth',
-  tw: 'https://tw.battle.net/oauth',
-}
-
-const API_HOST = {
-  eu: 'https://eu.api.blizzard.com',
-  us: 'https://us.api.blizzard.com',
-  kr: 'https://kr.api.blizzard.com',
-  tw: 'https://tw.api.blizzard.com',
-}
-
-// In-memory token cache — survives within a single serverless instance burst
-let blizTokenCache = { token: null, expiresAt: 0 }
-
-async function getToken(region) {
-  // Return cached token if still valid
-  if (blizTokenCache.token && Date.now() < blizTokenCache.expiresAt) {
-    return { access_token: blizTokenCache.token }
-  }
-
-  const clientId     = process.env.BLIZZARD_CLIENT_ID
-  const clientSecret = process.env.BLIZZARD_CLIENT_SECRET
-
-  if (!clientId || !clientSecret) {
-    throw new Error('BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET must be set')
-  }
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-  const tokenUrl    = `${OAUTH_HOST[region] ?? OAUTH_HOST.eu}/token`
-
-  const res = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'grant_type=client_credentials',
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Blizzard OAuth failed (${res.status}): ${text}`)
-  }
-
-  const data = await res.json()
-  // Cache with 60-second safety margin before actual expiry
-  blizTokenCache = {
-    token: data.access_token,
-    expiresAt: Date.now() + ((data.expires_in ?? 3600) - 60) * 1000,
-  }
-  return data
-}
+import { getBlizzardToken, API_HOST } from './_blizzardAuth.js'
 
 function normalizeSlotType(type) {
   const map = {
@@ -161,12 +107,12 @@ export default async function handler(req, res) {
 
   try {
     if (action === 'token') {
-      const token = await getToken(region)
-      return res.status(200).json(token)
+      const access_token = await getBlizzardToken(region)
+      return res.status(200).json({ access_token })
     }
 
     // All other actions need a token first
-    const { access_token: token } = await getToken(region)
+    const token = await getBlizzardToken(region)
 
     if (action === 'character') {
       if (!realm || !name) return res.status(400).json({ error: 'realm and name required' })

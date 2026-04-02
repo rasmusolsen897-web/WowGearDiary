@@ -160,6 +160,16 @@ function dpsDeltaColor(delta) {
   return 'var(--text-muted)'
 }
 
+function qualityColor(quality) {
+  switch (quality) {
+    case 'LEGENDARY': return 'var(--legendary-orange)'
+    case 'EPIC':      return 'var(--epic-purple)'
+    case 'RARE':      return 'var(--rare-blue)'
+    case 'UNCOMMON':  return 'var(--uncommon-green)'
+    default:          return 'var(--text)'
+  }
+}
+
 function DroptimizerSection({ member, region, realm, onUpdateMember }) {
   const memberKey = `${region}:${realm}:${member.name}`.toLowerCase()
   // Prefer URL from Supabase-synced member object; fall back to localStorage
@@ -299,7 +309,7 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
               <tbody>
                 {sorted.map((row, i) => (
                   <tr key={`${row.itemId}-${i}`}>
-                    <td style={{ fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: qualityColor(row.quality) }}>
                       {row.name}
                     </td>
                     <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{row.slot || '—'}</td>

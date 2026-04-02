@@ -1,3 +1,5 @@
+import { getBlizzardToken, API_HOST } from './_blizzardAuth.js'
+
 /**
  * api/raidbots-report.js — Proxy for public Raidbots report data
  *
@@ -56,6 +58,37 @@ function parseSimName(name) {
   return { itemId, itemLevel, slot, source }
 }
 
+/**
+ * Look up item names + quality from Blizzard static API.
+ * Returns a map of { [itemId]: { name, quality } }.
+ * Failures are silently swallowed — caller falls back to "Item {id}".
+ */
+async function fetchItemDetails(itemIds) {
+  if (!itemIds.length) return {}
+  let token
+  try { token = await getBlizzardToken('eu') } catch { return {} }
+
+  const host = API_HOST.eu
+  const results = await Promise.allSettled(
+    itemIds.map(id =>
+      fetch(`${host}/data/wow/item/${id}?namespace=static-eu&locale=en_US`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(r => r.ok ? r.json() : null)
+    )
+  )
+
+  const map = {}
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) {
+      map[itemIds[i]] = {
+        name:    r.value.name        ?? null,
+        quality: r.value.quality?.type ?? 'COMMON',
+      }
+    }
+  })
+  return map
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
@@ -87,24 +120,31 @@ export default async function handler(req, res) {
       const characterName = baselineRow?.[0] ?? null
       const baseDps       = parseFloat(baselineRow?.[1] ?? '0') || 0
 
-      const upgrades = itemRows
-        .map(row => {
-          const { itemId, itemLevel, slot, source } = parseSimName(row[0])
-          const dps      = parseFloat(row[1]) || 0
-          const dpsDelta = Math.round(dps - baseDps)
-          const dpsPct   = baseDps > 0
-            ? Math.round(dpsDelta / baseDps * 10000) / 100
-            : 0
-          return {
-            itemId,
-            name:     `Item ${itemId}`,
-            slot,
-            itemLevel,
-            dpsDelta,
-            dpsPct,
-            source,
-          }
-        })
+      // Parse all rows first, then bulk-enrich with Blizzard item names
+      const parsedItems = itemRows.map(row => {
+        const { itemId, itemLevel, slot, source } = parseSimName(row[0])
+        const dps      = parseFloat(row[1]) || 0
+        const dpsDelta = Math.round(dps - baseDps)
+        const dpsPct   = baseDps > 0
+          ? Math.round(dpsDelta / baseDps * 10000) / 100
+          : 0
+        return { itemId, itemLevel, slot, source, dpsDelta, dpsPct }
+      })
+
+      const uniqueIds = [...new Set(parsedItems.map(u => u.itemId).filter(Boolean))]
+      const itemDetails = await fetchItemDetails(uniqueIds)
+
+      const upgrades = parsedItems
+        .map(u => ({
+          itemId:    u.itemId,
+          name:      itemDetails[u.itemId]?.name    ?? `Item ${u.itemId}`,
+          quality:   itemDetails[u.itemId]?.quality ?? 'COMMON',
+          slot:      u.slot,
+          itemLevel: u.itemLevel,
+          dpsDelta:  u.dpsDelta,
+          dpsPct:    u.dpsPct,
+          source:    u.source,
+        }))
         .sort((a, b) => b.dpsDelta - a.dpsDelta)
 
       // Infer difficulty from first item row
