@@ -18,7 +18,7 @@
 const SLOT_NAMES = new Set([
   'head', 'neck', 'shoulder', 'back', 'chest', 'wrist', 'hands',
   'waist', 'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2',
-  'mainhand', 'offhand', 'ranged',
+  'mainhand', 'main_hand', 'offhand', 'off_hand', 'ranged',
 ])
 
 /** Parse a simple CSV line into an array of trimmed strings */
