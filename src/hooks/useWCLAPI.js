@@ -2,13 +2,29 @@ import { useState, useEffect, useRef } from 'react'
 
 const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
+/**
+ * Returns the Unix timestamp of the most recent EU weekly reset:
+ * every Tuesday at 09:00 UTC.
+ */
+function lastEUResetTs() {
+  const d = new Date()
+  d.setUTCHours(9, 0, 0, 0)
+  // getUTCDay(): 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
+  let daysSinceTue = (d.getUTCDay() - 2 + 7) % 7
+  // If today IS Tuesday but we haven't hit 09:00 UTC yet, use last week's reset
+  if (daysSinceTue === 0 && Date.now() < d.getTime()) daysSinceTue = 7
+  d.setUTCDate(d.getUTCDate() - daysSinceTue)
+  return d.getTime()
+}
+
 function readCache(key) {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
     if (Date.now() - ts > CACHE_TTL) return null
-    return data
+    if (ts < lastEUResetTs()) return null   // stale from before weekly reset
+    return { data, ts }
   } catch {
     return null
   }
@@ -30,10 +46,11 @@ function writeCache(key, data) {
  * Pass null/undefined for query to skip the request entirely.
  */
 export function useWCLAPI(query, variables = {}, cacheId = null) {
-  const [data, setData]       = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
-  const [tick, setTick]       = useState(0)
+  const [data, setData]           = useState(null)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState(null)
+  const [tick, setTick]           = useState(0)
+  const [fetchedAt, setFetchedAt] = useState(null)
 
   const variablesRef = useRef(variables)
   variablesRef.current = variables
@@ -44,7 +61,8 @@ export function useWCLAPI(query, variables = {}, cacheId = null) {
     const key = cacheId ? `wcl:${cacheId}` : `wcl:${btoa(query).slice(0, 40)}`
     const cached = readCache(key)
     if (cached) {
-      setData(cached)
+      setData(cached.data)
+      setFetchedAt(cached.ts)
       return
     }
 
@@ -75,6 +93,7 @@ export function useWCLAPI(query, variables = {}, cacheId = null) {
         }
         writeCache(key, json)
         setData(json)
+        setFetchedAt(Date.now())
       })
       .catch((err) => {
         if (cancelled) return
@@ -95,7 +114,7 @@ export function useWCLAPI(query, variables = {}, cacheId = null) {
     setTick((t) => t + 1)
   }
 
-  return { data, loading, error, refresh }
+  return { data, loading, error, refresh, fetchedAt }
 }
 
 // ── Convenience: character parses for recent tier ────────────────────────────
@@ -125,7 +144,7 @@ export function useCharacterParses(name, realm, region = 'eu', zoneID = null) {
   const variables = { name, serverSlug: realm, serverRegion: region, zoneID }
   const cacheId   = `parses:${region}:${realm}:${name}:${zoneID ?? 'auto'}`.toLowerCase()
 
-  const { data, loading, error, refresh } = useWCLAPI(
+  const { data, loading, error, refresh, fetchedAt } = useWCLAPI(
     name && realm ? CHARACTER_RANKINGS_QUERY : null,
     variables,
     cacheId,
@@ -136,5 +155,6 @@ export function useCharacterParses(name, realm, region = 'eu', zoneID = null) {
     loading,
     error,
     refresh,
+    fetchedAt,
   }
 }

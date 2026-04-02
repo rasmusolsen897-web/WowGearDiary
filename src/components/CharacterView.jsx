@@ -2,9 +2,10 @@ import data from '../data.json'
 import { useStorage } from '../hooks/index.js'
 import { useBlizzardAPI, useBlizzardMedia } from '../hooks/useBlizzardAPI.js'
 import { useCharacterParses } from '../hooks/useWCLAPI.js'
-import { useRaidbotsReport, getStoredReportUrl, setStoredReportUrl } from '../hooks/useRaidbotsReport.js'
-import { useDroptimizerReport, getStoredDroptimizerUrl, setStoredDroptimizerUrl } from '../hooks/useDroptimizerReport.js'
+import { useRaidbotsReport, getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
+import { useDroptimizerReport, getStoredDroptimizerUrl } from '../hooks/useDroptimizerReport.js'
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { timeAgo } from '../utils/timeAgo.js'
 import ProgressionCharts from './ProgressionCharts.jsx'
 import TierProgress from './TierProgress.jsx'
 import GearSlots from './GearSlots.jsx'
@@ -61,7 +62,7 @@ function RaidbotsSection({ member, region, realm, onUpdateMember, writeToken }) 
   const [editing, setEditing]     = useState(false)
   const [draft, setDraft]         = useState('')
 
-  const { dps, spec: reportSpec, loading, error } = useRaidbotsReport(reportUrl)
+  const { dps, spec: reportSpec, loading, error, fetchedAt } = useRaidbotsReport(reportUrl)
   const deepLink = `https://www.raidbots.com/simbot/quick?region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(member.name)}`
   const pendingSnapshot = useRef(false)
 
@@ -97,7 +98,6 @@ function RaidbotsSection({ member, region, realm, onUpdateMember, writeToken }) 
 
   const save = () => {
     const t = draft.trim()
-    setStoredReportUrl(memberKey, t)
     setReportUrl(t)
     setEditing(false)
     pendingSnapshot.current = true
@@ -114,6 +114,7 @@ function RaidbotsSection({ member, region, realm, onUpdateMember, writeToken }) 
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.75rem' }}>
           <span style={{ fontSize: '2rem', fontWeight: 700, color: '#a335ee' }}>{(dps / 1000).toFixed(1)}k</span>
           <span style={muted}>DPS</span>
+          {fetchedAt && <span style={fetchedAtStyle}>{timeAgo(fetchedAt)}</span>}
           {reportUrl && <a href={reportUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: 'var(--frost-blue)' }}>View report ↗</a>}
         </div>
       )}
@@ -125,7 +126,7 @@ function RaidbotsSection({ member, region, realm, onUpdateMember, writeToken }) 
           </button>
         )}
         {reportUrl && !editing && (
-          <button onClick={() => { setStoredReportUrl(memberKey, ''); setReportUrl('') }} style={{ ...ghostBtn, borderColor: '#555', color: '#666' }}>Clear</button>
+          <button onClick={() => { setReportUrl(''); if (onUpdateMember) onUpdateMember(member.name, { reportUrl: '' }) }} style={{ ...ghostBtn, borderColor: '#555', color: '#666' }}>Clear</button>
         )}
       </div>
       {editing && (
@@ -168,7 +169,7 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
   const [sortKey, setSortKey]     = useState('dpsDelta')
   const [sortDir, setSortDir]     = useState('desc')
 
-  const { upgrades, baseDps, spec, difficulty, loading, error } = useDroptimizerReport(reportUrl)
+  const { upgrades, baseDps, spec, difficulty, loading, error, fetchedAt } = useDroptimizerReport(reportUrl)
 
   const deepLink = `https://www.raidbots.com/simbot/droptimizer?region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(member.name)}`
 
@@ -180,7 +181,6 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
 
   const save = () => {
     const t = draft.trim()
-    setStoredDroptimizerUrl(memberKey, t)
     setReportUrl(t)
     setEditing(false)
     // Sync to Supabase via App.jsx updateMember → setGuild → postCharactersToApi
@@ -229,7 +229,7 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
         )}
         {reportUrl && !editing && (
           <button
-            onClick={() => { setStoredDroptimizerUrl(memberKey, ''); setReportUrl('') }}
+            onClick={() => { setReportUrl(''); if (onUpdateMember) onUpdateMember(member.name, { droptimizerUrl: '' }) }}
             style={{ ...ghostBtn, borderColor: '#555', color: '#666' }}
           >Clear</button>
         )}
@@ -273,6 +273,7 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
               baseDps > 0 && `${(baseDps / 1000).toFixed(1)}k base DPS`,
               `${upgrades.length} items`,
             ].filter(Boolean).join(' · ')}
+            {fetchedAt && <span style={fetchedAtStyle}> · {timeAgo(fetchedAt)}</span>}
           </p>
 
           {/* Table */}
@@ -330,7 +331,7 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
 
 // ── WclSection ────────────────────────────────────────────────────────────────
 
-function WclSection({ wclData, loading }) {
+function WclSection({ wclData, loading, fetchedAt }) {
   const [expanded, setExpanded] = useState(false)
 
   const { bosses, diff, zoneName, avgPct } = useMemo(() => {
@@ -354,6 +355,7 @@ function WclSection({ wclData, loading }) {
         <h3 style={{ ...sectionTitle, marginBottom: 0 }}>Warcraft Logs</h3>
         {loading && <span style={muted}>Fetching parses…</span>}
         {!loading && zoneName && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{zoneName} · {diff}</span>}
+        {!loading && fetchedAt && <span style={fetchedAtStyle}>{timeAgo(fetchedAt)}</span>}
         {!loading && avgPct !== null && (
           <span style={{ fontSize: '0.82rem', fontWeight: 700, color: parseBadgeColor(avgPct), border: `1px solid ${parseBadgeColor(avgPct)}`, borderRadius: 4, padding: '0.1rem 0.45rem' }}>
             avg {avgPct}%
@@ -432,9 +434,12 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
   const effectiveRealm = member.realm?.trim() || guild.realm
   const region         = guild.region
 
-  const { data: bliz, loading: gearLoading, error: gearError } = useBlizzardAPI(member.name, effectiveRealm, region)
+  const { data: bliz, loading: gearLoading, error: gearError, fetchedAt: blizFetchedAt, refresh: refreshBliz } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { avatarUrl }  = useBlizzardMedia(member.name, effectiveRealm, region)
-  const { data: wcl, loading: wclLoading } = useCharacterParses(member.name, effectiveRealm, region)
+  const { data: wcl, loading: wclLoading, fetchedAt: wclFetchedAt, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
+
+  const refreshAll = () => { refreshBliz(); refreshWCL() }
+  const refreshing = gearLoading || wclLoading
 
   // Auto-learn class/spec/role from Blizzard API (in useEffect, not during render)
   useEffect(() => {
@@ -470,6 +475,9 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
       <div style={backBtnWrap}>
         <button onClick={onBack} style={backBtnStyle}>
           ← Back to guild
+        </button>
+        <button onClick={refreshAll} disabled={refreshing} style={refreshBtnStyle} title="Refresh gear & parses">
+          {refreshing ? '…' : '↻'} Refresh
         </button>
       </div>
 
@@ -509,6 +517,7 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 20px', textAlign: 'center' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Avg iLvl</div>
             <div style={{ fontSize: 30, fontWeight: 700, color: ilvlColor(ilvl) }}>{ilvl}</div>
+            {blizFetchedAt && <div style={fetchedAtStyle}>{timeAgo(blizFetchedAt)}</div>}
           </div>
         )}
 
@@ -523,7 +532,7 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
       <DroptimizerSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} />
 
       {/* Warcraft Logs — per-boss parses */}
-      <WclSection wclData={wcl} loading={wclLoading} />
+      <WclSection wclData={wcl} loading={wclLoading} fetchedAt={wclFetchedAt} />
 
       {/* Progression history — iLvl + sim DPS over time */}
       <ProgressionCharts characterName={member.name} />
@@ -585,6 +594,8 @@ const sectionTitle = {
 
 const muted = { fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }
 
+const fetchedAtStyle = { fontSize: '0.72rem', color: 'var(--text-muted)', opacity: 0.7 }
+
 const ghostBtn = {
   background: 'transparent', border: '1px solid var(--frost-blue)', color: 'var(--frost-blue)',
   borderRadius: 4, padding: '0.3rem 0.7rem', fontSize: '0.82rem', cursor: 'pointer',
@@ -595,11 +606,16 @@ const purpleBtn = {
   border: '1px solid #a335ee', borderRadius: 4, padding: '0.3rem 0.7rem',
 }
 
-const backBtnWrap = { marginBottom: '1rem' }
+const backBtnWrap = { marginBottom: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }
 
 const backBtnStyle = {
   background: 'transparent', border: '1px solid #444', color: 'var(--text-muted)',
   borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13,
+}
+
+const refreshBtnStyle = {
+  background: 'transparent', border: '1px solid var(--frost-blue)', color: 'var(--frost-blue)',
+  borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13, marginLeft: 'auto',
 }
 
 const heroStyle = {

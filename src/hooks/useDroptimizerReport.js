@@ -29,7 +29,7 @@ function readCache(key) {
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
     if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(key); return null }
-    return data
+    return { data, ts }
   } catch { return null }
 }
 
@@ -40,9 +40,10 @@ function writeCache(key, data) {
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useDroptimizerReport(reportUrl) {
-  const [result, setResult]   = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
+  const [result, setResult]       = useState(null)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState(null)
+  const [fetchedAt, setFetchedAt] = useState(null)
 
   const reportId = reportIdFromUrl(reportUrl)
 
@@ -51,7 +52,7 @@ export function useDroptimizerReport(reportUrl) {
 
     const key    = cacheKey(reportId)
     const cached = readCache(key)
-    if (cached) { setResult(cached); setLoading(false); setError(null); return }
+    if (cached) { setResult(cached.data); setFetchedAt(cached.ts); setLoading(false); setError(null); return }
 
     let cancelled = false
     setLoading(true)
@@ -81,6 +82,7 @@ export function useDroptimizerReport(reportUrl) {
         }
         writeCache(key, data)
         setResult(data)
+        setFetchedAt(Date.now())
       })
       .catch((err) => { if (!cancelled) setError(err.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -97,6 +99,7 @@ export function useDroptimizerReport(reportUrl) {
     reportId,
     loading,
     error,
+    fetchedAt,
   }
 }
 
