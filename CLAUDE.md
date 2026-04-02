@@ -1,9 +1,11 @@
-# WoW Frost Mage Gear Upgrade Planner — Claude Context
+# WoW Guild Planner — Claude Context
 
 ## Project Summary
-A React + Vite single-page dashboard for **Whooplol** (Frost Mage, EU/Tarren Mill) to track gear upgrade priorities, simulate DPS gains, and plan the weekly WoW grind. Outputs a fully self-contained standalone HTML via `vite-plugin-singlefile`.
+A React + Vite guild management and character analysis platform for a small friend group. Members open the shared Vercel URL and see live gear, parse, and sim data for everyone in the guild. Guild roster is stored in Vercel KV (Upstash Redis) so all visitors see the same data. Writes are password-gated — guildies unlock once in Settings and their edits sync instantly.
 
-## Character
+**Whooplol** (Frost Mage, EU/Tarren Mill) is the "main" character with hardcoded sim/priority data in `src/data.json`. All other guild members get live data from the Blizzard, WCL, and Raidbots APIs only.
+
+## Main Character (Whooplol)
 - **Name:** Whooplol | **Class:** Frost Mage | **Race:** Troll
 - **Server:** EU/Tarren Mill | **Level:** 90 | **Patch:** 12.0.1 Midnight
 - **Avg iLvl:** 255.3 | **Catalyst Charges:** 8
@@ -12,16 +14,138 @@ A React + Vite single-page dashboard for **Whooplol** (Frost Mage, EU/Tarren Mil
 - **Framework:** React 18 + Vite 5
 - **Styling:** Hand-rolled CSS (no UI library) — all in `src/index.css`
 - **Standalone export:** `vite-plugin-singlefile` → `dist/index.html` (self-contained, no CDN)
+- **Vercel deploy:** `vite.config.vercel.js` → `dist/` served as SPA, `api/*.js` as serverless functions
+- **Cloud storage:** `@vercel/kv` (Upstash Redis) — guild roster key `wow-gear-diary:guild`
 - **No TypeScript** — plain `.jsx` files
-- **No router** — single page, all state in `App.jsx` via `useState`
+- **No router** — single page, conditional render between GuildOverview and CharacterView
 
 ## Build Commands
 ```bash
-# Dev server (requires Node in PATH — use full path on Windows if needed)
+# Dev server
 "/c/Program Files/nodejs/npm.cmd" run dev
 
-# Production build (produces dist/index.html — fully standalone)
+# Standalone HTML (dist/index.html — fully self-contained, no server needed)
 "/c/Program Files/nodejs/npm.cmd" run build
+
+# Vercel deploy build (dist/ + api/ serverless functions)
+"/c/Program Files/nodejs/npm.cmd" run build:vercel
+```
+
+**Always run both build commands after making changes.**
+
+## Required Vercel Environment Variables
+```
+BLIZZARD_CLIENT_ID        Battle.net OAuth2 client ID
+BLIZZARD_CLIENT_SECRET    Battle.net OAuth2 client secret
+WCL_CLIENT_ID             Warcraft Logs OAuth2 client ID
+WCL_CLIENT_SECRET         Warcraft Logs OAuth2 client secret
+GUILD_WRITE_TOKEN         Shared password for write access to guild KV data
+KV_REST_API_URL           Auto-set by Upstash Redis Vercel integration
+KV_REST_API_TOKEN         Auto-set by Upstash Redis Vercel integration
+```
+
+## Project Structure
+```
+WowGearDiary/
+├── CLAUDE.md
+├── TODO.md
+├── index.html                      ← Vite entry
+├── package.json
+├── vercel.json                     ← Vercel SPA rewrite + build config
+├── vite.config.js                  ← singlefile build
+├── vite.config.vercel.js           ← Vercel deploy build
+├── api/                            ← Vercel serverless functions (API proxies)
+│   ├── blizzard.js                 ← Blizzard Battle.net proxy (OAuth2, in-memory token cache)
+│   ├── wcl.js                      ← WCL GraphQL proxy (OAuth2, in-memory token cache)
+│   ├── guild.js                    ← Guild KV CRUD (GET open / POST password-gated)
+│   ├── raidbots.js                 ← Raidbots quick sim proxy
+│   └── raidbots-report.js          ← Droptimizer report parser (server-side, compact response)
+├── dist/
+│   └── index.html                  ← Built standalone (npm run build)
+└── src/
+    ├── data.json                   ← Whooplol sim/gear/priority data + guild seed roster
+    ├── index.css                   ← Global styles + all CSS variables
+    ├── main.jsx                    ← React root mount
+    ├── App.jsx                     ← Root: guild state, cloud sync, member routing
+    ├── components/
+    │   ├── GuildHeader.jsx         ← Top bar: guild name, settings cog
+    │   ├── GuildOverview.jsx       ← Member card grid with sort/filter/live API data
+    │   ├── CharacterView.jsx       ← Per-member detail view (all sections)
+    │   ├── Settings.jsx            ← Slide-in drawer (Guild / Characters / API tabs)
+    │   ├── ShareButton.jsx         ← Share URL helper
+    │   │
+    │   │   ── Whooplol-only panels (gated by isMainChar check in CharacterView) ──
+    │   ├── GearSlots.jsx           ← Clickable slot sidebar, filters SimTable
+    │   ├── SimTable.jsx            ← Tabbed Raid/M+ sim results with filters
+    │   ├── TierProgress.jsx        ← 5-slot tier tracker
+    │   ├── CatalystPlanner.jsx     ← Catalyst decision engine
+    │   ├── UpgradeCharts.jsx       ← DPS gain bar charts
+    │   ├── WeeklyTracker.jsx       ← Boss kill checkboxes + M+ counter + vault
+    │   ├── RaidBossPriority.jsx    ← Boss priority cards (high/medium/low)
+    │   ├── DungeonPriority.jsx     ← M+ dungeon targeting cards
+    │   └── GamePlan.jsx            ← 3-column weekly checklist
+    └── hooks/
+        ├── useBlizzardAPI.js       ← character gear/spec/class/iLvl, avatar URL
+        ├── useWCLAPI.js            ← character parses (avgParseFromWCL, per-boss data)
+        ├── useRaidbotsReport.js    ← quick sim DPS from report URL
+        ├── useDroptimizerReport.js ← upgrade table from Droptimizer report URL
+        ├── useStorage.js           ← localStorage + URL hash persistence hook
+        ├── useRaidbotsAPI.js       ← (legacy)
+        └── index.js                ← barrel exports
+```
+
+## App State (src/App.jsx)
+```js
+guild           // { name, region, realm, members[] } — KV → localStorage fallback
+selectedMember  // null | member object — drives GuildOverview vs CharacterView
+settingsOpen    // boolean
+writeToken      // string — localStorage, sent as X-Write-Token header on guild POSTs
+syncError       // null | string — last sync failure message
+syncStatus      // 'idle' | 'syncing' | 'ok' | 'error'
+```
+
+### Guild Sync Flow
+1. **Mount:** `GET /api/guild` → if response has members, overwrite local state (API is source of truth). Falls back to localStorage silently.
+2. **Write:** `setGuild(updated)` → always writes to localStorage + POSTs to `/api/guild` with `X-Write-Token` header if token is set. 401 → sets syncError, still saved locally.
+3. **Token:** stored in `localStorage['wow-gear-diary:write-token']`. Entered once in Settings → Guild → Cloud Sync. Persists across sessions.
+
+## API Integrations
+
+### Blizzard (`api/blizzard.js`)
+- OAuth2 client_credentials; in-memory token cache (resets on cold start, fine for burst requests)
+- Returns: `avgIlvl`, `spec`, `class`, `level`, `faction`, `gear[]`, `tierCount`, `hasCraftedWeapon`, `craftedWeaponIlvl`, `avatarUrl`
+- 15-min localStorage cache per character in `useBlizzardAPI`
+
+### Warcraft Logs (`api/wcl.js`)
+- OAuth2 client_credentials; in-memory token cache
+- Hook: `useCharacterParses(name, realm, region, zoneID=null)` — `null` tells WCL to auto-select the character's most recent tier
+- `avgParseFromWCL(wclData)` — averages `rankPercent` across Heroic (preferred) or Normal bosses with ≥1 kill
+- `zoneRankings` is a JSON scalar — `encounter.name`, `totalKills`, `bestAmount`, `zone.name` all come back without needing GraphQL sub-field selection
+- Per-boss expandable table in `CharacterView` via `WclSection` component
+- 30-min localStorage cache per character
+
+### Raidbots (`api/raidbots.js` + `api/raidbots-report.js`)
+- `api/raidbots-report.js`: server-side Droptimizer parser → compact ~16KB normalized shape (avoids sending 500–800KB raw JSON to client)
+- Droptimizer shape: `{ type, characterName, spec, baseDps, difficulty, upgrades: [{ itemId, name, slot, itemLevel, dpsDelta, dpsPct, source }] }`
+- 1-hour localStorage cache for Droptimizer reports
+- Report URLs currently stored per-member in localStorage (migration to guild object planned — see TODO.md)
+
+### Guild KV (`api/guild.js`)
+- `GET /api/guild` — returns guild JSON, no auth. Returns `null` (not error) if KV not configured.
+- `POST /api/guild` — writes guild JSON, requires `X-Write-Token: <GUILD_WRITE_TOKEN>` header
+- 503 if `KV_REST_API_URL` not set; 401 on wrong token
+
+## Data Shape (src/data.json)
+```
+character    — Whooplol's name, class, race, server, level, patch, avgIlvl, catalystCharges
+gear[]       — slot, item, ilvl, tierSlot (bool), hasTier (bool)
+raidSim[]    — item, slot, ilvl, dps (%), source, tier (bool), catalyst (bool)
+mythicSim[]  — item, slot, ilvl, dps (%), source, dungeon, catalyst (bool)
+raidBossPriority[] — boss, priority ('high'|'medium'|'low'), drops[]
+dungeonPriority[]  — dungeon, drops (count), note
+gamePlan     — thisWeek[], thursday[], afterRaid[]
+guild        — { name, region, realm, members[] }
+             — members[]: { name, realName, class, spec, role, isMain, realm, altOf }
 ```
 
 ## Color System (CSS Variables — defined in src/index.css)
@@ -43,102 +167,23 @@ A React + Vite single-page dashboard for **Whooplol** (Frost Mage, EU/Tarren Mil
 - ≥232: `--uncommon-green` (`#1eff00`)
 - <232: `--text-muted`
 
-## Project Structure
-```
-WowGearDiary/
-├── CLAUDE.md                 ← You are here
-├── index.html                ← Vite entry
-├── package.json
-├── vite.config.js            ← includes viteSingleFile plugin
-├── whooplol-planner.html     ← CDN-based standalone (no build needed)
-├── dist/
-│   └── index.html            ← Built standalone (run npm run build)
-└── src/
-    ├── data.json             ← ALL character/gear/sim data lives here
-    ├── index.css             ← Global styles + all CSS variables
-    ├── main.jsx              ← React root mount
-    ├── App.jsx               ← Layout + all shared state
-    └── components/
-        ├── CharacterHeader.jsx    ← Name, class, server, iLvl, catalyst pips
-        ├── TierProgress.jsx       ← 5-slot tier tracker (Head/Shoulder/Chest/Hands/Legs)
-        ├── GearSlots.jsx          ← Clickable sidebar — filters SimTable by slot
-        ├── SimTable.jsx           ← Tabbed Raid/M+ sim results with filters
-        ├── RaidBossPriority.jsx   ← Boss priority cards (high/medium/low)
-        ├── DungeonPriority.jsx    ← M+ dungeon targeting cards
-        └── GamePlan.jsx           ← 3-column weekly checklist
-```
-
-## App State (src/App.jsx)
-```js
-const [activeTab, setActiveTab] = useState('raid')      // 'raid' | 'mythic'
-const [selectedSlot, setSelectedSlot] = useState(null)  // gear slot name string
-const [typeFilter, setTypeFilter] = useState('all')      // 'all' | 'tier' | 'trinket'
-const [raidOnly, setRaidOnly] = useState(false)
-const [showCatalyst, setShowCatalyst] = useState(true)
-```
-
-## Data Shape (src/data.json)
-Key top-level keys:
-- `character` — name, class, race, server, level, patch, avgIlvl, catalystCharges
-- `gear[]` — slot, item, ilvl, tierSlot (bool), hasTier (bool)
-- `raidSim[]` — item, slot, ilvl, dps (%), source, tier (bool), catalyst (bool)
-- `mythicSim[]` — item, slot, ilvl, dps (%), source, dungeon, catalyst (bool)
-- `raidBossPriority[]` — boss, priority ('high'|'medium'|'low'), drops[]
-- `dungeonPriority[]` — dungeon, drops (count), note
-- `gamePlan` — thisWeek[], thursday[], afterRaid[]
-
-## Planned Extensions (Upcoming Agent Work)
-
-### Module D — Persistence + URL State
-- New file: `src/hooks/useStorage.js` — localStorage hook + URL hash encoding
-- Saves: activeTab, selectedSlot, typeFilter, raidOnly, showCatalyst, lootLog, weeklyReset
-- URL format: `#tab=raid&slot=Head&filter=tier`
-- **This should be built first** — other modules depend on it
-
-### Module C — Charts & Visuals
-- New file: `src/components/UpgradeCharts.jsx`
-- DPS% gain bar chart by slot (pure CSS bars, no chart library)
-- iLvl by slot vs best available upgrade (from raidSim/mythicSim)
-- Added as a collapsible section below SimTable
-
-### Module A — Weekly Reset Tracker
-- New file: `src/components/WeeklyTracker.jsx`
-- Boss kill checkboxes (from raidBossPriority data)
-- M+ run counter per dungeon
-- Vault slot tracker (3 slots: raid/m+/world)
-- Countdown to weekly reset (Tuesday 09:00 UTC for EU)
-- Persisted via useStorage hook
-
-### Module B — Catalyst Decision Engine
-- New file: `src/components/CatalystPlanner.jsx`
-- Reads current tier count from gear[] hasTier fields
-- Reads catalyst charges from character.catalystCharges
-- Ranks non-tier slots by: (sim DPS gain if tier) × (current ilvl gap)
-- Outputs: "Catalyst X next — gains Y% DPS, gets you to 2pc"
-- Persisted via useStorage hook
-
-### Shareability / Hosting
-- Target: Vercel deployment for permanent shareable URL
-- Friends can view (read-only) the same dashboard
-- No backend needed — static deploy of dist/index.html
-
-### Warcraft Logs Integration (researched, approved)
-- Official GraphQL API: `https://www.warcraftlogs.com/api/v2/client`
-- Auth: OAuth2 client credentials
-- Use case: Pull recent parse history for Whooplol, display in dashboard
-- Requires: WCL API client ID + secret (stored in .env, not committed)
-
-### Raidbots Integration (researched)
-- No public API exists for sim submission
-- Deep-link only: `https://www.raidbots.com/simbot/quick?region=eu&realm=tarren-mill&name=Whooplol`
-- Add "Open in Raidbots" button to CharacterHeader
+## Parse Badge Colors (`parseBadgeColor(pct)`)
+- ≥95%: `#e268a8` (pink)
+- ≥75%: `#ff8000` (orange)
+- ≥50%: `#1eff00` (green)
+- ≥25%: `#0070dd` (blue)
+- <25%: `#9d9d9d` (gray)
 
 ## Agent Guidelines
-- **Always run `npm run build` after changes** to verify the standalone HTML still works
-- **Never add external CSS frameworks** (Tailwind, Bootstrap, etc.) — hand-rolled CSS only
-- **Never add a router** — this is a single-page app, no routing needed
+- **Always run `npm run build` AND `npm run build:vercel`** after any code change — both must pass
+- **Never add external CSS frameworks** (Tailwind, Bootstrap) — hand-rolled CSS only
+- **Never add a router** — SPA with conditional render, no routing needed
 - **Keep components pure** — props in, JSX out. Side effects only in hooks
 - **Color additions** go in `src/index.css` as CSS variables, not inline styles
-- **New components** go in `src/components/` and must be imported in `App.jsx`
+- **New components** go in `src/components/` and must be imported where used
 - **Data changes** go in `src/data.json` only — no hardcoded data in components
-- **Test the build** — run `npm run build` and confirm `dist/index.html` opens in a browser
+- **API proxies** go in `api/` — never call third-party APIs directly from the browser (CORS + secret leaking)
+- **Whooplol-only panels** are gated behind `isMainChar` in `CharacterView.jsx` — keep them there
+- **setState during render is forbidden** — always wrap in `useEffect` for side effects that update parent state
+- **Inline style objects** in render bodies cause unnecessary re-renders — extract to module-level `const` at bottom of file
+- **`React.memo`** list items that run hooks (e.g. MemberCard) to prevent cascade re-renders on parent state changes
