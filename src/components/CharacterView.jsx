@@ -415,9 +415,12 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
   const effectiveRealm = member.realm?.trim() || guild.realm
   const region         = guild.region
 
-  const { data: bliz, loading: gearLoading, error: gearError, fetchedAt: blizFetchedAt } = useBlizzardAPI(member.name, effectiveRealm, region)
+  const { data: bliz, loading: gearLoading, error: gearError, fetchedAt: blizFetchedAt, refresh: refreshBliz } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { avatarUrl }  = useBlizzardMedia(member.name, effectiveRealm, region)
-  const { data: wcl, loading: wclLoading, fetchedAt: wclFetchedAt } = useCharacterParses(member.name, effectiveRealm, region)
+  const { data: wcl, loading: wclLoading, fetchedAt: wclFetchedAt, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
+
+  const refreshAll = () => { refreshBliz(); refreshWCL() }
+  const refreshing = gearLoading || wclLoading
 
   // Auto-learn class/spec/role from Blizzard API (in useEffect, not during render)
   useEffect(() => {
@@ -453,6 +456,9 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
       <div style={backBtnWrap}>
         <button onClick={onBack} style={backBtnStyle}>
           ← Back to guild
+        </button>
+        <button onClick={refreshAll} disabled={refreshing} style={refreshBtnStyle} title="Refresh gear & parses">
+          {refreshing ? '…' : '↻'} Refresh
         </button>
       </div>
 
@@ -581,11 +587,16 @@ const purpleBtn = {
   border: '1px solid #a335ee', borderRadius: 4, padding: '0.3rem 0.7rem',
 }
 
-const backBtnWrap = { marginBottom: '1rem' }
+const backBtnWrap = { marginBottom: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }
 
 const backBtnStyle = {
   background: 'transparent', border: '1px solid #444', color: 'var(--text-muted)',
   borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13,
+}
+
+const refreshBtnStyle = {
+  background: 'transparent', border: '1px solid var(--frost-blue)', color: 'var(--frost-blue)',
+  borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontSize: 13, marginLeft: 'auto',
 }
 
 const heroStyle = {

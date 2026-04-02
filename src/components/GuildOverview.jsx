@@ -80,7 +80,8 @@ const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMem
   const memberKey      = `${region}:${effectiveRealm}:${member.name}`.toLowerCase()
 
   const { data, loading: gearLoading, error: gearError, refresh, fetchedAt: blizFetchedAt } = useBlizzardAPI(member.name, effectiveRealm, region)
-  const { data: wclData, loading: wclLoading } = useCharacterParses(member.name, effectiveRealm, region)
+  const { data: wclData, loading: wclLoading, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
+  const refreshAll = useCallback((e) => { e.stopPropagation(); refresh(); refreshWCL() }, [refresh, refreshWCL])
   const reportUrl = member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey)
   const { dps } = useRaidbotsReport(reportUrl)
 
@@ -144,6 +145,9 @@ const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMem
             <span style={{ fontSize: '1.5rem', fontWeight: 700, color: ilvlColor(ilvl), lineHeight: 1 }}>{ilvl}</span>
             <span style={mutedSmallStyle}>avg iLvl</span>
             {blizFetchedAt && <span style={cardFetchedAtStyle}>{timeAgo(blizFetchedAt)}</span>}
+            <button onClick={refreshAll} disabled={gearLoading || wclLoading} style={refreshIconBtn} title="Refresh">
+              {gearLoading || wclLoading ? '…' : '↻'}
+            </button>
           </>
         )}
         {!data && !gearLoading && !gearError && (
@@ -344,3 +348,4 @@ const fetchingTextStyle = { fontSize: '0.75rem', color: 'var(--text-muted)' }
 const dpsLabelStyle   = { fontSize: '0.85rem', fontWeight: 600, color: '#a335ee' }
 const chevronStyle      = { position: 'absolute', bottom: '0.7rem', right: '0.9rem', fontSize: '0.85rem', color: 'var(--text-muted)', pointerEvents: 'none' }
 const cardFetchedAtStyle = { fontSize: '0.68rem', color: 'var(--text-muted)', opacity: 0.6, marginLeft: 'auto' }
+const refreshIconBtn    = { background: 'transparent', border: 'none', color: 'var(--frost-blue)', cursor: 'pointer', fontSize: '0.85rem', padding: '0 2px', lineHeight: 1, opacity: 0.7 }
