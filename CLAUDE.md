@@ -15,7 +15,8 @@ A React + Vite guild management and character analysis platform for a small frie
 - **Styling:** Hand-rolled CSS (no UI library) — all in `src/index.css`
 - **Standalone export:** `vite-plugin-singlefile` → `dist/index.html` (self-contained, no CDN)
 - **Vercel deploy:** `vite.config.vercel.js` → `dist/` served as SPA, `api/*.js` as serverless functions
-- **Cloud storage:** `@vercel/kv` (Upstash Redis) — guild roster key `wow-gear-diary:guild`
+- **Cloud storage (metadata):** `@vercel/kv` (Upstash Redis) — guild name/realm/region only (`wow-gear-diary:guild`)
+- **Cloud storage (characters + history):** Supabase Postgres — `characters`, `ilvl_snapshots`, `sim_snapshots` tables
 - **No TypeScript** — plain `.jsx` files
 - **No router** — single page, conditional render between GuildOverview and CharacterView
 
@@ -42,6 +43,8 @@ WCL_CLIENT_SECRET         Warcraft Logs OAuth2 client secret
 GUILD_WRITE_TOKEN         Shared password for write access to guild KV data
 KV_REST_API_URL           Auto-set by Upstash Redis Vercel integration
 KV_REST_API_TOKEN         Auto-set by Upstash Redis Vercel integration
+SUPABASE_URL              Supabase project URL (https://xxxx.supabase.co)
+SUPABASE_SERVICE_ROLE_KEY Supabase service role / secret key (server-side only, never expose to browser)
 ```
 
 ## Project Structure
@@ -55,9 +58,12 @@ WowGearDiary/
 ├── vite.config.js                  ← singlefile build
 ├── vite.config.vercel.js           ← Vercel deploy build
 ├── api/                            ← Vercel serverless functions (API proxies)
-│   ├── blizzard.js                 ← Blizzard Battle.net proxy (OAuth2, in-memory token cache)
+│   ├── _supabase.js                ← Shared Supabase client (service role, server-side only)
+│   ├── blizzard.js                 ← Blizzard Battle.net proxy + fire-and-forget iLvl snapshot
 │   ├── wcl.js                      ← WCL GraphQL proxy (OAuth2, in-memory token cache)
 │   ├── guild.js                    ← Guild KV CRUD (GET open / POST password-gated)
+│   ├── characters.js               ← Supabase characters CRUD (GET/POST/DELETE)
+│   ├── snapshots.js                ← Supabase iLvl + sim DPS history (GET/POST)
 │   ├── raidbots.js                 ← Raidbots quick sim proxy
 │   └── raidbots-report.js          ← Droptimizer report parser (server-side, compact response)
 ├── dist/
@@ -75,6 +81,7 @@ WowGearDiary/
     │   ├── ShareButton.jsx         ← Share URL helper
     │   │
     │   │   ── Whooplol-only panels (gated by isMainChar check in CharacterView) ──
+    │   ├── ProgressionCharts.jsx   ← SVG sparkline charts: iLvl + DPS over time (fetches /api/snapshots)
     │   ├── GearSlots.jsx           ← Clickable slot sidebar, filters SimTable
     │   ├── SimTable.jsx            ← Tabbed Raid/M+ sim results with filters
     │   ├── TierProgress.jsx        ← 5-slot tier tracker
@@ -105,9 +112,13 @@ syncStatus      // 'idle' | 'syncing' | 'ok' | 'error'
 ```
 
 ### Guild Sync Flow
-1. **Mount:** `GET /api/guild` → if response has members, overwrite local state (API is source of truth). Falls back to localStorage silently.
-2. **Write:** `setGuild(updated)` → always writes to localStorage + POSTs to `/api/guild` with `X-Write-Token` header if token is set. 401 → sets syncError, still saved locally.
-3. **Token:** stored in `localStorage['wow-gear-diary:write-token']`. Entered once in Settings → Guild → Cloud Sync. Persists across sessions.
+1. **Mount:** Fetches `/api/guild` (KV metadata) and `/api/characters` (Supabase) in parallel.
+   - Supabase characters are used if present (source of truth, includes report URLs)
+   - KV members used as fallback; if Supabase is empty and write token is set → seeds Supabase automatically
+2. **Write:** `setGuild(updated)` → always writes to localStorage + POSTs to `/api/guild` (KV) AND `/api/characters` (Supabase) if token is set. 401 → sets syncError, still saved locally.
+3. **Report URLs:** Stored on `member.reportUrl` / `member.droptimizerUrl` in the characters table. RaidbotsSection and DroptimizerSection prefer these over localStorage on init. On save, `onUpdateMember` is called → syncs via `setGuild`.
+4. **iLvl history:** Written fire-and-forget in `api/blizzard.js` after every character fetch. One row per character per day (UPSERT).
+5. **Token:** stored in `localStorage['wow-gear-diary:write-token']`. Entered once in Settings → Guild → Cloud Sync. Persists across sessions.
 
 ## API Integrations
 
