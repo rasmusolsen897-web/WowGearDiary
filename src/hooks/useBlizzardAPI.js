@@ -12,7 +12,7 @@ function readCache(key) {
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
     if (Date.now() - ts > CACHE_TTL) return null
-    return data
+    return { data, ts }
   } catch {
     return null
   }
@@ -36,10 +36,11 @@ function writeCache(key, data) {
  * { data: null, error: 'API not available' }.
  */
 export function useBlizzardAPI(name, realm, region = 'eu') {
-  const [data, setData]       = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
-  const [tick, setTick]       = useState(0)  // increment to force refresh
+  const [data, setData]           = useState(null)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState(null)
+  const [tick, setTick]           = useState(0)  // increment to force refresh
+  const [fetchedAt, setFetchedAt] = useState(null)
 
   useEffect(() => {
     if (!name || !realm) return
@@ -47,7 +48,8 @@ export function useBlizzardAPI(name, realm, region = 'eu') {
     const key = cacheKey(region, realm, name)
     const cached = readCache(key)
     if (cached) {
-      setData(cached)
+      setData(cached.data)
+      setFetchedAt(cached.ts)
       return
     }
 
@@ -72,6 +74,7 @@ export function useBlizzardAPI(name, realm, region = 'eu') {
         if (cancelled) return
         writeCache(key, json)
         setData(json)
+        setFetchedAt(Date.now())
       })
       .catch((err) => {
         if (cancelled) return
@@ -89,7 +92,7 @@ export function useBlizzardAPI(name, realm, region = 'eu') {
     setTick((t) => t + 1)
   }
 
-  return { data, loading, error, refresh }
+  return { data, loading, error, refresh, fetchedAt }
 }
 
 /**
@@ -107,7 +110,7 @@ export function useBlizzardMedia(name, realm, region = 'eu') {
 
     const key = `blizzard-media:${region}:${realm}:${name}`.toLowerCase()
     const cached = readCache(key)
-    if (cached) { setAvatarUrl(cached.avatarUrl); return }
+    if (cached) { setAvatarUrl(cached.data.avatarUrl); return }
 
     let cancelled = false
     setLoading(true)

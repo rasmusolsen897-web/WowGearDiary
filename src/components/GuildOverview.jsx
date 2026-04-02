@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, memo } from 'react'
 import { useBlizzardAPI, useCharacterParses } from '../hooks/index.js'
-import { getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
-import { useRaidbotsReport } from '../hooks/useRaidbotsReport.js'
+import { useRaidbotsReport, getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
+import { timeAgo } from '../utils/timeAgo.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,9 +79,10 @@ const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMem
   const effectiveRealm = member.realm?.trim() || realm
   const memberKey      = `${region}:${effectiveRealm}:${member.name}`.toLowerCase()
 
-  const { data, loading: gearLoading, error: gearError, refresh } = useBlizzardAPI(member.name, effectiveRealm, region)
+  const { data, loading: gearLoading, error: gearError, refresh, fetchedAt: blizFetchedAt } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { data: wclData, loading: wclLoading } = useCharacterParses(member.name, effectiveRealm, region)
-  const { dps } = useRaidbotsReport(getStoredReportUrl(memberKey))
+  const reportUrl = member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey)
+  const { dps } = useRaidbotsReport(reportUrl)
 
   // Fix 1: Lift data up via useEffect (not during render)
   useEffect(() => {
@@ -142,6 +143,7 @@ const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMem
           <>
             <span style={{ fontSize: '1.5rem', fontWeight: 700, color: ilvlColor(ilvl), lineHeight: 1 }}>{ilvl}</span>
             <span style={mutedSmallStyle}>avg iLvl</span>
+            {blizFetchedAt && <span style={cardFetchedAtStyle}>{timeAgo(blizFetchedAt)}</span>}
           </>
         )}
         {!data && !gearLoading && !gearError && (
@@ -340,4 +342,5 @@ const badgeRowStyle   = { display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }
 const parseRowStyle   = { display: 'flex', alignItems: 'center', gap: '0.5rem' }
 const fetchingTextStyle = { fontSize: '0.75rem', color: 'var(--text-muted)' }
 const dpsLabelStyle   = { fontSize: '0.85rem', fontWeight: 600, color: '#a335ee' }
-const chevronStyle    = { position: 'absolute', bottom: '0.7rem', right: '0.9rem', fontSize: '0.85rem', color: 'var(--text-muted)', pointerEvents: 'none' }
+const chevronStyle      = { position: 'absolute', bottom: '0.7rem', right: '0.9rem', fontSize: '0.85rem', color: 'var(--text-muted)', pointerEvents: 'none' }
+const cardFetchedAtStyle = { fontSize: '0.68rem', color: 'var(--text-muted)', opacity: 0.6, marginLeft: 'auto' }

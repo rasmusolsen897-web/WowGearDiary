@@ -19,7 +19,7 @@ function readCache(key) {
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
     if (Date.now() - ts > CACHE_TTL) return null
-    return data
+    return { data, ts }
   } catch {
     return null
   }
@@ -41,9 +41,10 @@ function writeCache(key, data) {
  * Returns { dps, characterName, spec, reportId, loading, error }
  */
 export function useRaidbotsReport(reportUrl) {
-  const [result, setResult]   = useState({ dps: null, characterName: null, spec: null })
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
+  const [result, setResult]       = useState({ dps: null, characterName: null, spec: null })
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState(null)
+  const [fetchedAt, setFetchedAt] = useState(null)
 
   const reportId = reportIdFromUrl(reportUrl)
 
@@ -57,7 +58,8 @@ export function useRaidbotsReport(reportUrl) {
     const key = cacheKey(reportId)
     const cached = readCache(key)
     if (cached) {
-      setResult(cached)
+      setResult(cached.data)
+      setFetchedAt(cached.ts)
       return
     }
 
@@ -85,6 +87,7 @@ export function useRaidbotsReport(reportUrl) {
         const data = { dps: meanDps, characterName: name, spec: specStr }
         writeCache(key, data)
         setResult(data)
+        setFetchedAt(Date.now())
       })
       .catch((err) => {
         if (cancelled) return
@@ -97,7 +100,7 @@ export function useRaidbotsReport(reportUrl) {
     return () => { cancelled = true }
   }, [reportId])
 
-  return { ...result, reportId, loading, error }
+  return { ...result, reportId, loading, error, fetchedAt }
 }
 
 /**
