@@ -85,21 +85,19 @@ function CharacterRow({ member, mainNames, onChange, onRemove }) {
     <div style={{ marginBottom: '0.4rem' }}>
       {/* Collapsed row */}
       {!expanded && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '0.5rem',
-          background: '#0d0d1a', borderRadius: '6px', padding: '0.5rem 0.75rem',
-        }}>
-          <span style={{ fontWeight: 700, color: nameColor, minWidth: 90 }}>{member.name || '—'}</span>
-          {member.realName && <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>({member.realName})</span>}
+        <div className="char-row" style={{ borderLeftColor: nameColor }}>
+          <span style={{ fontWeight: 700, color: nameColor, minWidth: 80, fontSize: '0.9rem' }}>{member.name || '—'}</span>
+          {member.realName && <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>({member.realName})</span>}
+          {!member.isMain && (
+            <span style={{ fontSize: '0.68rem', color: 'var(--frost-blue)', border: '1px solid rgba(105,204,255,0.4)', borderRadius: '10px', padding: '1px 6px', whiteSpace: 'nowrap' }}>alt</span>
+          )}
           <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', flex: 1 }}>
             {[member.spec, member.class].filter(Boolean).join(' ') || 'No class set'} · {member.role}
-            {!member.isMain && <span style={{ marginLeft: 6, border: '1px solid #444', borderRadius: 3, padding: '0 4px', fontSize: '0.7rem' }}>alt</span>}
           </span>
           <button
             onClick={() => setExpanded(true)}
-            title="Edit"
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem', padding: '0 4px' }}
-          >✎</button>
+            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}
+          >Edit</button>
         </div>
       )}
 
@@ -360,7 +358,44 @@ export default function Settings({ open, onClose, guild, onGuildChange, writeTok
           {/* ── Guild Tab ── */}
           {activeTab === 'guild' && (
             <section>
-              <h3 style={sectionTitleStyle}>Guild Settings</h3>
+              {/* ── Cloud Sync banner — top of tab ── */}
+              {writeToken ? (
+                <div className={`settings-banner settings-banner--${syncStatus === 'error' ? 'error' : 'unlocked'}`}>
+                  <span>🔓</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {syncStatus === 'syncing' ? 'Syncing…' : syncStatus === 'error' ? `Sync error — ${syncError}` : 'Editing enabled — changes sync to all members'}
+                  </span>
+                  <button onClick={handleLock} style={{ ...actionBtn, marginLeft: 'auto', borderColor: '#555', color: '#aaa', fontSize: '0.75rem' }}>
+                    Lock
+                  </button>
+                </div>
+              ) : (
+                <div className="settings-banner settings-banner--locked">
+                  <span>🔒</span>
+                  <span style={{ flex: 1 }}>Read-only</span>
+                  <input
+                    type="password"
+                    value={tokenDraft}
+                    onChange={(e) => { setTokenDraft(e.target.value); setUnlockState('idle') }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+                    placeholder="Guild password"
+                    style={{ ...inputStyle, flex: 2, minWidth: 0 }}
+                  />
+                  <button
+                    onClick={handleUnlock}
+                    disabled={unlockState === 'checking' || !tokenDraft.trim()}
+                    style={{ ...actionBtn, borderColor: 'var(--frost-blue)', color: 'var(--frost-blue)', whiteSpace: 'nowrap', opacity: (!tokenDraft.trim() || unlockState === 'checking') ? 0.5 : 1 }}
+                  >
+                    {unlockState === 'checking' ? '…' : 'Unlock'}
+                  </button>
+                  {unlockState === 'wrong' && (
+                    <span style={{ fontSize: '0.78rem', color: '#ff4444', whiteSpace: 'nowrap' }}>✗ Wrong password</span>
+                  )}
+                </div>
+              )}
+
+              {/* ── Identity ── */}
+              <h3 style={sectionTitleStyle}>Identity</h3>
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                 <input
                   value={localGuild.name}
@@ -383,68 +418,8 @@ export default function Settings({ open, onClose, guild, onGuildChange, writeTok
                 />
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Set a default realm here. Individual characters can override it in the Characters tab.
+                Individual characters can override the default realm in the Characters tab.
               </p>
-
-              {/* ── Cloud Sync ── */}
-              <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #333' }}>
-                <h3 style={sectionTitleStyle}>☁ Cloud Sync</h3>
-
-                {writeToken ? (
-                  /* ── Unlocked state ── */
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '1rem' }}>🔓</span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--success)', fontWeight: 600 }}>Editing enabled</span>
-                      {syncStatus === 'syncing' && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>syncing…</span>}
-                      {syncStatus === 'ok'      && <span style={{ fontSize: '0.75rem', color: 'var(--success)' }}>✓ synced</span>}
-                      {syncStatus === 'error'   && <span style={{ fontSize: '0.75rem', color: '#ff4444' }}>✗ sync error</span>}
-                      <button onClick={handleLock} style={{ ...actionBtn, marginLeft: 'auto', borderColor: '#555', color: '#aaa', fontSize: '0.75rem' }}>
-                        Lock
-                      </button>
-                    </div>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-                      Changes you make sync to all guild members. Share the password with guildies who need to edit.
-                    </p>
-                    {syncError && (
-                      <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.6rem', background: 'rgba(255,68,68,0.1)', borderRadius: '4px', fontSize: '0.78rem', color: '#ff7070' }}>
-                        ⚠ {syncError}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* ── Locked state ── */
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '1rem' }}>🔒</span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Read-only</span>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>— enter the guild password to enable editing</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <input
-                        type="password"
-                        value={tokenDraft}
-                        onChange={(e) => { setTokenDraft(e.target.value); setUnlockState('idle') }}
-                        onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-                        placeholder="Guild password"
-                        style={{ ...inputStyle, flex: 1 }}
-                      />
-                      <button
-                        onClick={handleUnlock}
-                        disabled={unlockState === 'checking' || !tokenDraft.trim()}
-                        style={{ ...actionBtn, borderColor: 'var(--frost-blue)', color: 'var(--frost-blue)', whiteSpace: 'nowrap', opacity: (!tokenDraft.trim() || unlockState === 'checking') ? 0.5 : 1 }}
-                      >
-                        {unlockState === 'checking' ? '…' : 'Unlock'}
-                      </button>
-                    </div>
-                    {unlockState === 'wrong' && (
-                      <div style={{ marginTop: '0.4rem', fontSize: '0.78rem', color: '#ff4444' }}>
-                        ✗ Wrong password — ask the guild admin.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
             </section>
           )}
 

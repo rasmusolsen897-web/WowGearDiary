@@ -245,36 +245,35 @@ export default function GuildOverview({ guild, onSelectMember }) {
 
       {/* Sort / filter bar */}
       <div className="filter-bar" style={filterBarMargin}>
-        {/* Role filter */}
-        <div className="filter-group">
+        {/* Role pills */}
+        <div style={filterGroupStyle}>
           {[['all', 'All'], ['tank', 'Tank'], ['healer', 'Healer'], ['dps', 'DPS']].map(([key, label]) => (
             <button
               key={key}
-              className={`btn btn-toggle${roleFilter === key ? ' active' : ''}`}
+              className={`btn-pill${roleFilter === key ? ' active' : ''}`}
               onClick={() => setRoleFilter(key)}
             >{label}</button>
           ))}
         </div>
 
-        <div className="filter-divider" />
-
-        {/* Sort */}
-        <div className="filter-group">
-          <span style={sortLabelStyle}>Sort:</span>
-          {[['ilvl', 'iLvl'], ['parse', 'Parse %'], ['dps', 'Sim DPS']].map(([key, label]) => (
-            <button
-              key={key}
-              className={`btn btn-toggle${sortBy === key ? ' active-orange' : ''}`}
-              onClick={() => setSortBy(key)}
-            >{label}</button>
-          ))}
+        {/* Sort dropdown */}
+        <div style={filterGroupStyle}>
+          <span style={sortLabelStyle}>Sort</span>
+          <select
+            className="filter-select"
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+          >
+            <option value="ilvl">iLvl</option>
+            <option value="parse">Parse %</option>
+            <option value="dps">Sim DPS</option>
+          </select>
         </div>
 
-        <div className="filter-divider" />
-
-        {/* Show alts */}
+        {/* Alts toggle — pushed to right */}
         <button
-          className={`btn btn-toggle${showAlts ? ' active' : ''}`}
+          className={`btn-pill${showAlts ? ' active' : ''}`}
+          style={{ marginLeft: 'auto' }}
           onClick={() => setShowAlts(v => !v)}
         >
           {showAlts ? 'Hide alts' : 'Show alts'}
@@ -331,7 +330,8 @@ const summaryBarStyle = { display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marg
 const headingRowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }
 const headingSubStyle = { fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.5rem' }
 const filterBarMargin = { marginBottom: '1rem' }
-const sortLabelStyle  = { fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: 2 }
+const filterGroupStyle = { display: 'flex', alignItems: 'center', gap: '4px' }
+const sortLabelStyle  = { fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }
 const cardsContainerStyle = { display: 'flex', flexWrap: 'wrap', gap: '1rem' }
 const emptyMsgStyle   = { color: 'var(--text-muted)', fontSize: '0.9rem' }
 const nameRowStyle    = { display: 'flex', alignItems: 'center', justifyContent: 'space-between' }

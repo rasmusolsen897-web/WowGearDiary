@@ -177,6 +177,58 @@ body {
   color: var(--epic-purple);
 }
 
+/* ---- Pill buttons (compact role/sort toggles) ---- */
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-pill:hover {
+  border-color: var(--frost-blue);
+  color: var(--frost-blue);
+}
+.btn-pill.active {
+  background: rgba(105, 204, 255, 0.15);
+  border-color: var(--frost-blue);
+  color: var(--frost-blue);
+}
+
+/* ---- Filter select (sort dropdown) ---- */
+select.filter-select {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 20px;
+  padding: 4px 28px 4px 12px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%237a8ba0' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: all 0.15s;
+}
+select.filter-select:hover, select.filter-select:focus {
+  border-color: var(--frost-blue);
+  color: var(--frost-blue);
+  outline: none;
+}
+select.filter-select option {
+  background: var(--card);
+  color: var(--text);
+}
+
 /* ---- Tabs ---- */
 .tabs {
   display: flex;
@@ -373,10 +425,48 @@ body {
 .dps-mid-color  { background: var(--dps-mid); }
 .dps-low-color  { background: var(--dps-low); }
 
-/* ---- Glow effects ---- */
-.glow-frost  { box-shadow: 0 0 12px rgba(105, 204, 255, 0.3); }
-.glow-purple { box-shadow: 0 0 12px rgba(163, 53, 238, 0.4); }
-.glow-orange { box-shadow: 0 0 10px rgba(255, 128, 0, 0.35); }
+/* ---- Settings sync banner ---- */
+.settings-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid;
+}
+.settings-banner--locked {
+  background: rgba(255,255,255,0.03);
+  border-color: var(--border-bright);
+  color: var(--text-muted);
+}
+.settings-banner--unlocked {
+  background: rgba(76, 255, 145, 0.07);
+  border-color: rgba(76, 255, 145, 0.3);
+  color: var(--success);
+}
+.settings-banner--error {
+  background: rgba(255, 68, 68, 0.07);
+  border-color: rgba(255, 68, 68, 0.3);
+  color: #ff7070;
+}
+
+/* ---- Character row (Settings) ---- */
+.char-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(255,255,255,0.02);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  border-left: 3px solid transparent;
+  margin-bottom: 0.4rem;
+  transition: border-color 0.15s;
+}
+.char-row:hover {
+  background: rgba(255,255,255,0.04);
+}
 
 /* ---- Layout ---- */
 .app-container {

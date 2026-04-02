@@ -82,7 +82,8 @@ export function useRaidbotsReport(reportUrl) {
         const player = json?.sim?.players?.[0]
         const meanDps = Math.round(player?.collected_data?.dps?.mean ?? 0)
         const name    = player?.name ?? null
-        const specStr = json?.simbot?.meta?.specName ?? null
+        // simbot wrapper removed from Raidbots data.json ~2025; spec no longer available
+        const specStr = null
 
         const data = { dps: meanDps, characterName: name, spec: specStr }
         writeCache(key, data)
