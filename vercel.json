@@ -1,8 +1,18 @@
 {
   "buildCommand": "npm run build:vercel",
   "outputDirectory": "dist",
-"rewrites": [
+  "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron-droptimizer-submit",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron-droptimizer-poll",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }
