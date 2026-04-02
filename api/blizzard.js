@@ -171,6 +171,17 @@ export default async function handler(req, res) {
     if (action === 'character') {
       if (!realm || !name) return res.status(400).json({ error: 'realm and name required' })
       const data = await fetchCharacter(region, realm, name, token)
+
+      // Fire-and-forget iLvl snapshot (best-effort, doesn't block response)
+      if (data.avgIlvl && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const { createClient } = await import('@supabase/supabase-js')
+        const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+        sb.from('ilvl_snapshots').upsert(
+          { character_name: data.name, avg_ilvl: data.avgIlvl, snapped_at: new Date().toISOString().slice(0, 10) },
+          { onConflict: 'character_name,snapped_at' },
+        ).then(() => {})
+      }
+
       return res.status(200).json(data)
     }
 

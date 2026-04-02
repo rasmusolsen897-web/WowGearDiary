@@ -260,6 +260,64 @@ body {
   background: rgba(105, 204, 255, 0.04);
 }
 
+/* ---- Progression Charts (ProgressionCharts.jsx) ---- */
+.wcl-section {
+  background: var(--card);
+  border-radius: 10px;
+  border: 1px solid #2a2a3e;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.wcl-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.wcl-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.wcl-avg-badge {
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid currentColor;
+}
+.wcl-expand-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+.wcl-expand-btn:hover {
+  border-color: var(--frost-blue);
+  color: var(--frost-blue);
+}
+.chart-block {
+  margin-top: 0.75rem;
+}
+.chart-x-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding: 0 4px;
+  margin-top: 2px;
+}
+
 /* ---- Table ---- */
 .sim-table {
   width: 100%;

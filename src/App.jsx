@@ -38,12 +38,19 @@ function saveWriteToken(token) {
 }
 
 async function postGuildToApi(guild, token) {
-  const res = await fetch('/api/guild', {
+  return fetch('/api/guild', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Write-Token': token },
     body: JSON.stringify(guild),
   })
-  return res
+}
+
+async function postCharactersToApi(members, token) {
+  return fetch('/api/characters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Write-Token': token },
+    body: JSON.stringify({ characters: members }),
+  }).catch(() => {}) // best-effort, don't block
 }
 
 export default function App() {
@@ -58,22 +65,47 @@ export default function App() {
   const writeTokenRef = useRef(writeToken)
   useEffect(() => { writeTokenRef.current = writeToken }, [writeToken])
 
-  // On mount: fetch the latest guild from the API and use it as source of truth
+  // On mount: fetch guild metadata (KV) + characters (Supabase) in parallel
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/api/guild', { signal: controller.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(remote => {
-        if (remote?.members?.length) {
-          setGuildState(remote)
-          saveGuild(remote)
+    const sig = { signal: controller.signal }
+
+    Promise.all([
+      fetch('/api/guild', sig).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/characters', sig).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([remote, supaChars]) => {
+      setGuildState(prev => {
+        let updated = prev
+
+        // Apply guild metadata (name, realm, region) from KV
+        if (remote) {
+          updated = {
+            ...updated,
+            name:   remote.name   ?? updated.name,
+            realm:  remote.realm  ?? updated.realm,
+            region: remote.region ?? updated.region,
+          }
         }
+
+        // Supabase characters are source of truth; KV members are fallback
+        if (supaChars?.length) {
+          updated = { ...updated, members: supaChars }
+        } else if (remote?.members?.length) {
+          updated = { ...updated, members: remote.members }
+          // Seed Supabase if empty and we have a write token
+          const token = writeTokenRef.current
+          if (token) postCharactersToApi(remote.members, token)
+        }
+
+        saveGuild(updated)
+        return updated
       })
-      .catch(() => {}) // silently fall back to localStorage
+    })
+
     return () => controller.abort()
   }, [])
 
-  // Central setter — writes to localStorage and (if token set) syncs to API
+  // Central setter — writes to localStorage and (if token set) syncs to API + Supabase
   function setGuild(updaterOrValue) {
     setGuildState(prev => {
       const updated = typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue
@@ -81,7 +113,11 @@ export default function App() {
       const token = writeTokenRef.current
       if (token) {
         setSyncStatus('syncing')
-        postGuildToApi(updated, token).then(res => {
+        // Sync guild metadata to KV and characters to Supabase in parallel
+        Promise.all([
+          postGuildToApi(updated, token),
+          postCharactersToApi(updated.members, token),
+        ]).then(([res]) => {
           if (res.status === 401) {
             setSyncStatus('error')
             setSyncError('Wrong password — changes saved locally only. Re-enter in Settings → Guild.')

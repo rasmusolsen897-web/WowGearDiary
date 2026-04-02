@@ -5,6 +5,7 @@ import { useCharacterParses } from '../hooks/useWCLAPI.js'
 import { useRaidbotsReport, getStoredReportUrl, setStoredReportUrl } from '../hooks/useRaidbotsReport.js'
 import { useDroptimizerReport, getStoredDroptimizerUrl, setStoredDroptimizerUrl } from '../hooks/useDroptimizerReport.js'
 import { useState, useEffect, useMemo } from 'react'
+import ProgressionCharts from './ProgressionCharts.jsx'
 import TierProgress from './TierProgress.jsx'
 import GearSlots from './GearSlots.jsx'
 import SimTable from './SimTable.jsx'
@@ -55,7 +56,8 @@ function bestParse(wclData) {
 
 function RaidbotsSection({ member, region, realm, onUpdateMember }) {
   const memberKey   = `${region}:${realm}:${member.name}`.toLowerCase()
-  const [reportUrl, setReportUrl] = useState(() => getStoredReportUrl(memberKey))
+  // Prefer URL from Supabase-synced member object; fall back to localStorage
+  const [reportUrl, setReportUrl] = useState(() => member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey) ?? '')
   const [editing, setEditing]     = useState(false)
   const [draft, setDraft]         = useState('')
 
@@ -69,11 +71,19 @@ function RaidbotsSection({ member, region, realm, onUpdateMember }) {
     }
   }, [reportSpec]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sync incoming member.reportUrl changes (e.g. loaded from Supabase after mount)
+  useEffect(() => {
+    const remote = member.reportUrl ?? member.report_url
+    if (remote && remote !== reportUrl) setReportUrl(remote)
+  }, [member.reportUrl, member.report_url]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const save = () => {
     const t = draft.trim()
     setStoredReportUrl(memberKey, t)
     setReportUrl(t)
     setEditing(false)
+    // Sync to Supabase via App.jsx updateMember → setGuild → postCharactersToApi
+    if (onUpdateMember) onUpdateMember(member.name, { reportUrl: t })
   }
 
   return (
@@ -130,9 +140,10 @@ function dpsDeltaColor(delta) {
   return 'var(--text-muted)'
 }
 
-function DroptimizerSection({ member, region, realm }) {
+function DroptimizerSection({ member, region, realm, onUpdateMember }) {
   const memberKey = `${region}:${realm}:${member.name}`.toLowerCase()
-  const [reportUrl, setReportUrl] = useState(() => getStoredDroptimizerUrl(memberKey))
+  // Prefer URL from Supabase-synced member object; fall back to localStorage
+  const [reportUrl, setReportUrl] = useState(() => member.droptimizerUrl ?? member.droptimizer_url ?? getStoredDroptimizerUrl(memberKey) ?? '')
   const [editing, setEditing]     = useState(false)
   const [draft, setDraft]         = useState('')
   const [sortKey, setSortKey]     = useState('dpsDelta')
@@ -142,11 +153,19 @@ function DroptimizerSection({ member, region, realm }) {
 
   const deepLink = `https://www.raidbots.com/simbot/droptimizer?region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(member.name)}`
 
+  // Sync incoming member.droptimizerUrl changes (e.g. loaded from Supabase after mount)
+  useEffect(() => {
+    const remote = member.droptimizerUrl ?? member.droptimizer_url
+    if (remote && remote !== reportUrl) setReportUrl(remote)
+  }, [member.droptimizerUrl, member.droptimizer_url]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const save = () => {
     const t = draft.trim()
     setStoredDroptimizerUrl(memberKey, t)
     setReportUrl(t)
     setEditing(false)
+    // Sync to Supabase via App.jsx updateMember → setGuild → postCharactersToApi
+    if (onUpdateMember) onUpdateMember(member.name, { droptimizerUrl: t })
   }
 
   const handleSort = (key) => {
@@ -482,10 +501,13 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
       <RaidbotsSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} />
 
       {/* Droptimizer */}
-      <DroptimizerSection member={member} region={region} realm={effectiveRealm} />
+      <DroptimizerSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} />
 
       {/* Warcraft Logs — per-boss parses */}
       <WclSection wclData={wcl} loading={wclLoading} />
+
+      {/* Progression history — iLvl + sim DPS over time */}
+      <ProgressionCharts characterName={member.name} />
 
       {/* Gear list from live API */}
       {bliz?.gear && <GearList gear={bliz.gear} />}
