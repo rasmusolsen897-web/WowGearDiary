@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/cron-droptimizer-poll",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
