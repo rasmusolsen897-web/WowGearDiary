@@ -2,12 +2,28 @@ import { useState, useEffect, useRef } from 'react'
 
 const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
+/**
+ * Returns the Unix timestamp of the most recent EU weekly reset:
+ * every Tuesday at 09:00 UTC.
+ */
+function lastEUResetTs() {
+  const d = new Date()
+  d.setUTCHours(9, 0, 0, 0)
+  // getUTCDay(): 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
+  let daysSinceTue = (d.getUTCDay() - 2 + 7) % 7
+  // If today IS Tuesday but we haven't hit 09:00 UTC yet, use last week's reset
+  if (daysSinceTue === 0 && Date.now() < d.getTime()) daysSinceTue = 7
+  d.setUTCDate(d.getUTCDate() - daysSinceTue)
+  return d.getTime()
+}
+
 function readCache(key) {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
     if (Date.now() - ts > CACHE_TTL) return null
+    if (ts < lastEUResetTs()) return null   // stale from before weekly reset
     return { data, ts }
   } catch {
     return null
