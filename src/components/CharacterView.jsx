@@ -4,7 +4,7 @@ import { useBlizzardAPI, useBlizzardMedia } from '../hooks/useBlizzardAPI.js'
 import { useCharacterParses } from '../hooks/useWCLAPI.js'
 import { useRaidbotsReport, getStoredReportUrl, setStoredReportUrl } from '../hooks/useRaidbotsReport.js'
 import { useDroptimizerReport, getStoredDroptimizerUrl, setStoredDroptimizerUrl } from '../hooks/useDroptimizerReport.js'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import ProgressionCharts from './ProgressionCharts.jsx'
 import TierProgress from './TierProgress.jsx'
 import GearSlots from './GearSlots.jsx'
@@ -54,7 +54,7 @@ function bestParse(wclData) {
 
 // ── RaidbotsSection ───────────────────────────────────────────────────────────
 
-function RaidbotsSection({ member, region, realm, onUpdateMember }) {
+function RaidbotsSection({ member, region, realm, onUpdateMember, writeToken }) {
   const memberKey   = `${region}:${realm}:${member.name}`.toLowerCase()
   // Prefer URL from Supabase-synced member object; fall back to localStorage
   const [reportUrl, setReportUrl] = useState(() => member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey) ?? '')
@@ -63,6 +63,24 @@ function RaidbotsSection({ member, region, realm, onUpdateMember }) {
 
   const { dps, spec: reportSpec, loading, error } = useRaidbotsReport(reportUrl)
   const deepLink = `https://www.raidbots.com/simbot/quick?region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(member.name)}`
+  const pendingSnapshot = useRef(false)
+
+  // Fire sim snapshot once DPS loads after a user-triggered save
+  useEffect(() => {
+    if (!pendingSnapshot.current || !dps || dps <= 0 || !writeToken) return
+    pendingSnapshot.current = false
+    fetch('/api/snapshots?type=sim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Write-Token': writeToken },
+      body: JSON.stringify({
+        character_name: member.name,
+        dps,
+        report_url: reportUrl,
+        report_type: 'quick',
+        spec: reportSpec ?? member.spec ?? undefined,
+      }),
+    }).catch(() => {})
+  }, [dps]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-learn spec/role from report once it loads
   useEffect(() => {
@@ -82,6 +100,7 @@ function RaidbotsSection({ member, region, realm, onUpdateMember }) {
     setStoredReportUrl(memberKey, t)
     setReportUrl(t)
     setEditing(false)
+    pendingSnapshot.current = true
     // Sync to Supabase via App.jsx updateMember → setGuild → postCharactersToApi
     if (onUpdateMember) onUpdateMember(member.name, { reportUrl: t })
   }
@@ -409,7 +428,7 @@ function specToRole(spec) {
   return 'dps'
 }
 
-export default function CharacterView({ member, guild, onBack, onUpdateMember }) {
+export default function CharacterView({ member, guild, onBack, onUpdateMember, writeToken }) {
   const effectiveRealm = member.realm?.trim() || guild.realm
   const region         = guild.region
 
@@ -498,7 +517,7 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember })
       </div>
 
       {/* Raidbots Quick Sim */}
-      <RaidbotsSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} />
+      <RaidbotsSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} writeToken={writeToken} />
 
       {/* Droptimizer */}
       <DroptimizerSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} />

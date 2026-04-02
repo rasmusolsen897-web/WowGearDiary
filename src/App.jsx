@@ -186,6 +186,7 @@ export default function App() {
           guild={guild}
           onBack={() => setSelectedMember(null)}
           onUpdateMember={updateMember}
+          writeToken={writeToken}
         />
         <Settings {...settingsProps} />
       </>
