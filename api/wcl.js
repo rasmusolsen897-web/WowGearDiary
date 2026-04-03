@@ -8,8 +8,31 @@
  *   → returns raw WCL GraphQL response
  */
 
+import { applyRateLimit } from './_rateLimit.js'
+
 const WCL_OAUTH_URL = 'https://www.warcraftlogs.com/oauth/token'
 const WCL_API_URL   = 'https://www.warcraftlogs.com/api/v2/client'
+
+function normalizeQuery(query = '') {
+  return query.replace(/\s+/g, ' ').trim()
+}
+
+const ALLOWED_QUERY_SIGNATURES = new Set([
+  normalizeQuery(`
+    query CharacterRankings($name: String!, $serverSlug: String!, $serverRegion: String!, $zoneID: Int) {
+      characterData {
+        character(name: $name, serverSlug: $serverSlug, serverRegion: $serverRegion) {
+          name
+          classID
+          rankingsNormal: zoneRankings(zoneID: $zoneID, difficulty: 4)
+          rankingsHeroic: zoneRankings(zoneID: $zoneID, difficulty: 5)
+          rankingsMythic: zoneRankings(zoneID: $zoneID, difficulty: 6)
+        }
+      }
+    }
+  `),
+  normalizeQuery('{ worldData { zone(id: 41) { id name } } }'),
+])
 
 // In-memory token cache — survives within a single serverless instance burst
 let wclTokenCache = { token: null, expiresAt: 0 }
@@ -66,6 +89,19 @@ export default async function handler(req, res) {
 
   if (!query) {
     return res.status(400).json({ error: 'Request body must include { query, variables }' })
+  }
+
+  if (!ALLOWED_QUERY_SIGNATURES.has(normalizeQuery(query))) {
+    return res.status(403).json({ error: 'Query shape not allowed' })
+  }
+
+  const rateLimit = applyRateLimit(req, res, {
+    key: 'wcl',
+    limit: 30,
+    windowMs: 60 * 1000,
+  })
+  if (!rateLimit.ok) {
+    return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter })
   }
 
   try {

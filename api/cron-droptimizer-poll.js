@@ -75,7 +75,7 @@ export default async function handler(req, res) {
 
         // Write report URL back to the character record
         await sb.from('characters')
-          .update({ droptimizerUrl: reportUrl })
+          .update({ droptimizer_url: reportUrl })
           .ilike('name', job.character_name) // case-insensitive match
 
         console.log(`[cron-droptimizer-poll] Completed: ${job.character_name} → ${reportUrl}`)

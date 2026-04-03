@@ -14,7 +14,7 @@ const POLL_INTERVAL = 5000 // 5 seconds
  * type can be: 'quick' | 'advanced' | 'droptimizer'
  * For droptimizer, pass droptimizer: { region, realm, name, ... }
  */
-export function useRaidbotsAPI() {
+export function useRaidbotsAPI(writeToken = '') {
   const [jobId, setJobId]       = useState(null)
   const [status, setStatus]     = useState(null)   // 'pending' | 'in_progress' | 'complete' | 'failed'
   const [progress, setProgress] = useState(0)
@@ -38,7 +38,9 @@ export function useRaidbotsAPI() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/raidbots?jobId=${id}`)
+        const res = await fetch(`/api/raidbots?jobId=${id}`, {
+          headers: writeToken ? { 'X-Write-Token': writeToken } : {},
+        })
         const ct = res.headers.get('content-type') ?? ''
         if (res.status === 404 || !ct.includes('application/json')) {
           stopPolling()
@@ -87,7 +89,10 @@ export function useRaidbotsAPI() {
     try {
       const res = await fetch('/api/raidbots', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(writeToken ? { 'X-Write-Token': writeToken } : {}),
+        },
         body: JSON.stringify({ simc, type, advancedInput, droptimizer }),
       })
 
@@ -108,7 +113,7 @@ export function useRaidbotsAPI() {
       setError(err.message)
       setLoading(false)
     }
-  }, [startPolling, stopPolling])
+  }, [startPolling, stopPolling, writeToken])
 
   const reset = useCallback(() => {
     stopPolling()

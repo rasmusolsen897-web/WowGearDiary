@@ -14,6 +14,10 @@
  */
 
 import { getBlizzardToken, API_HOST } from './_blizzardAuth.js'
+import { applyRateLimit } from './_rateLimit.js'
+
+const VALID_REGIONS = new Set(['eu', 'us', 'kr', 'tw'])
+const SAFE_QUERY_RE = /^[a-zA-Z0-9\s'-]{1,40}$/
 
 function normalizeSlotType(type) {
   const map = {
@@ -105,18 +109,35 @@ export default async function handler(req, res) {
 
   const { action, region = 'eu', realm, name } = req.query
 
-  try {
-    if (action === 'token') {
-      const access_token = await getBlizzardToken(region)
-      return res.status(200).json({ access_token })
-    }
+  if (!VALID_REGIONS.has(region)) {
+    return res.status(400).json({ error: 'invalid region' })
+  }
 
+  if (!['character', 'media'].includes(action)) {
+    return res.status(400).json({ error: `Unknown action: ${action}` })
+  }
+
+  if (!realm || !name) return res.status(400).json({ error: 'realm and name required' })
+  if (!SAFE_QUERY_RE.test(String(realm)) || !SAFE_QUERY_RE.test(String(name))) {
+    return res.status(400).json({ error: 'invalid realm or name' })
+  }
+
+  const rateLimit = applyRateLimit(req, res, {
+    key: `blizzard:${action}`,
+    limit: action === 'media' ? 120 : 60,
+    windowMs: 60 * 1000,
+  })
+  if (!rateLimit.ok) {
+    return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter })
+  }
+
+  try {
     // All other actions need a token first
     const token = await getBlizzardToken(region)
 
     if (action === 'character') {
-      if (!realm || !name) return res.status(400).json({ error: 'realm and name required' })
       const data = await fetchCharacter(region, realm, name, token)
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate')
 
       // Fire-and-forget iLvl snapshot (best-effort, doesn't block response)
       if (data.avgIlvl && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -132,12 +153,10 @@ export default async function handler(req, res) {
     }
 
     if (action === 'media') {
-      if (!realm || !name) return res.status(400).json({ error: 'realm and name required' })
       const data = await fetchMedia(region, realm, name, token)
+      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
       return res.status(200).json(data)
     }
-
-    return res.status(400).json({ error: `Unknown action: ${action}` })
   } catch (err) {
     console.error('[api/blizzard]', err.message)
     return res.status(500).json({ error: err.message })
