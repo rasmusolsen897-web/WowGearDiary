@@ -33,15 +33,97 @@ export const DROPTIMIZER_SCENARIOS = {
 }
 
 const exactPayloadCache = new Map()
+const jsonEnvCache = new Map()
+const jsonEnvWarningCache = new Map()
 
-function readJsonEnv(name) {
+function normalizeCharacterName(name) {
+  return String(name ?? '').trim().toLowerCase()
+}
+
+function warnJsonEnv(name, sourceKey, message) {
+  const signature = `${sourceKey}:${message}`
+  if (jsonEnvWarningCache.get(name) === signature) return
+  jsonEnvWarningCache.set(name, signature)
+  console.warn(`[droptimizer env ${name}] ${message}`)
+}
+
+function readChunkedJsonEnv(name) {
+  const prefix = `${name}_PART_`
+  const parts = Object.entries(process.env)
+    .filter(([key, value]) => key.startsWith(prefix) && value)
+    .map(([key, value]) => ({
+      value,
+      index: Number.parseInt(key.slice(prefix.length), 10),
+    }))
+    .filter((part) => Number.isInteger(part.index) && part.index > 0)
+    .sort((left, right) => left.index - right.index)
+
+  if (!parts.length) return null
+
+  const expectedIndexes = parts.map((_, index) => index + 1)
+  const hasGap = parts.some((part, index) => part.index !== expectedIndexes[index])
+  if (hasGap) {
+    warnJsonEnv(
+      name,
+      'parts',
+      `Ignoring chunked override because ${name}_PART_n entries must start at 1 and be contiguous.`,
+    )
+    return null
+  }
+
+  return {
+    raw: parts.map((part) => part.value).join(''),
+    sourceKey: `parts:${parts.length}`,
+  }
+}
+
+function resolveJsonEnvSource(name) {
+  const chunked = readChunkedJsonEnv(name)
+  if (chunked) return chunked
+
   const raw = process.env[name]
   if (!raw) return null
 
+  return {
+    raw,
+    sourceKey: 'single',
+  }
+}
+
+function readJsonEnv(name) {
+  const source = resolveJsonEnvSource(name)
+  if (!source) {
+    jsonEnvCache.delete(name)
+    return null
+  }
+
+  const cached = jsonEnvCache.get(name)
+  if (cached && cached.raw === source.raw && cached.sourceKey === source.sourceKey) {
+    return cached.value
+  }
+
   try {
-    return JSON.parse(raw)
+    const value = JSON.parse(source.raw)
+    jsonEnvCache.set(name, {
+      raw: source.raw,
+      sourceKey: source.sourceKey,
+      value,
+    })
+    return value
   } catch (error) {
-    console.error(`[droptimizer env ${name}]`, error.message)
+    const truncationHint = source.sourceKey === 'single' && source.raw.length >= 8192
+      ? ` The value looks truncated near 8192 characters; split it across ${name}_PART_1, ${name}_PART_2, and so on instead of a single env var.`
+      : ''
+    warnJsonEnv(
+      name,
+      source.sourceKey,
+      `Ignoring invalid optional JSON override: ${error.message}.${truncationHint}`,
+    )
+    jsonEnvCache.set(name, {
+      raw: source.raw,
+      sourceKey: source.sourceKey,
+      value: null,
+    })
     return null
   }
 }
@@ -56,8 +138,43 @@ function isExactDroptimizerPayload(payload) {
   )
 }
 
+function isExactPayloadCharacter(scenario, name) {
+  return Array.isArray(scenario?.exactPayloadCharacters)
+    && scenario.exactPayloadCharacters.some((value) => normalizeCharacterName(value) === normalizeCharacterName(name))
+}
+
+function stripActorSpecificFields(payload) {
+  if (!payload || typeof payload !== 'object') return {}
+
+  const {
+    armory: _armory,
+    character: _character,
+    type: _type,
+    reportName: _reportName,
+    baseActorName: _baseActorName,
+    spec: _spec,
+    gearsets: _gearsets,
+    talents: _talents,
+    talentSets: _talentSets,
+    droptimizerItems: _droptimizerItems,
+    ...rest
+  } = payload
+
+  if (rest.droptimizer && typeof rest.droptimizer === 'object') {
+    const nestedDroptimizer = { ...rest.droptimizer }
+    delete nestedDroptimizer.equipped
+    delete nestedDroptimizer.classId
+    delete nestedDroptimizer.specId
+    delete nestedDroptimizer.lootSpecId
+    delete nestedDroptimizer.faction
+    rest.droptimizer = nestedDroptimizer
+  }
+
+  return rest
+}
+
 function exactPayloadCacheKey(scenarioKey, name) {
-  return `${scenarioKey}:${String(name ?? '').trim().toLowerCase()}`
+  return `${scenarioKey}:${normalizeCharacterName(name)}`
 }
 
 async function readStoredExactPayload(scenarioKey, name) {
@@ -353,33 +470,31 @@ export async function buildScenarioPayload(scenarioKey, { name, realm, region })
   const scenario = DROPTIMIZER_SCENARIOS[scenarioKey]
   if (!scenario) throw new Error(`Unknown Droptimizer scenario: ${scenarioKey}`)
 
-  const useStoredExactPayload = Array.isArray(scenario.exactPayloadCharacters)
-    && scenario.exactPayloadCharacters.includes(name)
-  const storedPayload = useStoredExactPayload
+  const exactPayloadAllowed = isExactPayloadCharacter(scenario, name)
+  const storedPayload = exactPayloadAllowed
     ? await readStoredExactPayload(scenarioKey, name)
     : null
-  const envPayload = storedPayload ?? readJsonEnv(scenario.envVar) ?? {}
-  const hasExactDroptimizer = envPayload.droptimizer && typeof envPayload.droptimizer === 'object'
-  const hasExactPayload = isExactDroptimizerPayload(envPayload)
+  const envPayload = readJsonEnv(scenario.envVar) ?? {}
+  if (storedPayload) {
+    return storedPayload
+  }
 
-  if (hasExactPayload) {
+  if (exactPayloadAllowed && isExactDroptimizerPayload(envPayload)) {
     return envPayload
   }
 
-  const basePayload = hasExactDroptimizer
-    ? envPayload
-    : {
-        ...scenario.defaults,
-        ...envPayload,
-      }
-  const envArmory = envPayload.armory && typeof envPayload.armory === 'object'
-    ? envPayload.armory
+  const reusableEnvPayload = isExactDroptimizerPayload(envPayload)
+    ? stripActorSpecificFields(envPayload)
+    : envPayload
+  const envArmory = reusableEnvPayload.armory && typeof reusableEnvPayload.armory === 'object'
+    ? reusableEnvPayload.armory
     : {}
 
   return {
-    ...basePayload,
-    reportName: envPayload.reportName ?? scenario.reportName,
-    baseActorName: envPayload.baseActorName ?? name,
+    ...scenario.defaults,
+    ...reusableEnvPayload,
+    reportName: reusableEnvPayload.reportName ?? scenario.reportName,
+    baseActorName: reusableEnvPayload.baseActorName ?? name,
     armory: {
       ...envArmory,
       region,
