@@ -70,6 +70,10 @@ function AutomatedPrioritiesSection({ member }) {
     ? (active.completedAt ? `Updated ${timeAgo(active.completedAt)}` : 'Completed')
     : active?.status === 'failed'
       ? 'Automation failed'
+      : active?.status === 'retryable'
+        ? 'Retry scheduled'
+        : active?.status === 'queued'
+          ? 'Queued for automation'
       : active?.status === 'running'
         ? 'Automation running'
         : 'No automation result yet'
@@ -614,7 +618,6 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: 4 }}>
             <h2 style={{ margin: 0, fontSize: 28, fontWeight: 700, color: classColor, letterSpacing: '0.03em' }}>
               {bliz?.name ?? member.name}
-              {member.realName && <span style={{ fontSize: 16, fontWeight: 400, color: 'var(--text-muted)', marginLeft: '0.5rem' }}>({member.realName})</span>}
             </h2>
             {parse && (
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: parseBadgeColor(parse.pct), border: `1px solid ${parseBadgeColor(parse.pct)}`, borderRadius: 4, padding: '0.15rem 0.5rem' }}>

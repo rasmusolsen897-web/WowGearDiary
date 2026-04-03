@@ -118,9 +118,6 @@ const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMem
         <div style={nameRowStyle}>
           <div>
             <span style={{ fontWeight: 700, fontSize: '1rem', color: classColor }}>{member.name}</span>
-            {member.realName && (
-              <span style={realNameStyle}>({member.realName})</span>
-            )}
           </div>
           {!member.isMain && (
             <span style={altBadgeStyle}>alt</span>
@@ -335,7 +332,6 @@ const sortLabelStyle  = { fontSize: '0.75rem', color: 'var(--text-muted)', white
 const cardsContainerStyle = { display: 'flex', flexWrap: 'wrap', gap: '1rem' }
 const emptyMsgStyle   = { color: 'var(--text-muted)', fontSize: '0.9rem' }
 const nameRowStyle    = { display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
-const realNameStyle   = { fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }
 const altBadgeStyle   = { fontSize: '0.7rem', color: 'var(--text-muted)', border: '1px solid #444', borderRadius: '3px', padding: '0.1rem 0.4rem' }
 const specLineStyle   = { fontSize: '0.8rem', color: 'var(--text-muted)' }
 const ilvlRowStyle    = { display: 'flex', alignItems: 'baseline', gap: '0.5rem' }

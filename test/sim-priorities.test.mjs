@@ -26,3 +26,22 @@ test('scenario response keeps latest completed data with failed latest status', 
   assert.equal(response.upgrades[0].itemName, 'Dream Helm')
   assert.equal(response.priorities[0].sourceName, 'Boss One')
 })
+
+test('scenario response exposes queued retry metadata', () => {
+  const response = buildScenarioResponse(
+    'raid_heroic',
+    {
+      status: 'retryable',
+      error_message: 'Raidbots submit failed (429)',
+      attempt_count: 2,
+      next_retry_at: '2026-04-03T06:00:00.000Z',
+    },
+    { completed_at: '2026-04-03T04:00:00.000Z', base_dps: 123456, report_url: 'https://example.test/report', difficulty: 'raid-heroic' },
+    [],
+  )
+
+  assert.equal(response.status, 'retryable')
+  assert.equal(response.attemptCount, 2)
+  assert.equal(response.nextRetryAt, '2026-04-03T06:00:00.000Z')
+  assert.equal(response.baseDps, 123456)
+})

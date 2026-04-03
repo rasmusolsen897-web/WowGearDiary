@@ -15,6 +15,12 @@ create table if not exists sim_runs (
   unique (character_name, scenario, run_date)
 );
 
+alter table if exists sim_runs
+  add column if not exists attempt_count integer not null default 0;
+
+alter table if exists sim_runs
+  add column if not exists next_retry_at timestamptz;
+
 create table if not exists sim_run_items (
   id uuid primary key default gen_random_uuid(),
   sim_run_id uuid not null references sim_runs(id) on delete cascade,
@@ -40,6 +46,20 @@ create table if not exists droptimizer_payloads (
   unique (character_name, scenario)
 );
 
+create table if not exists droptimizer_scheduler_state (
+  scenario text primary key,
+  active_run_id uuid references sim_runs(id) on delete set null,
+  lock_token text,
+  lock_expires_at timestamptz,
+  last_seeded_run_date date,
+  updated_at timestamptz not null default now()
+);
+
+insert into droptimizer_scheduler_state (scenario)
+values ('raid_heroic')
+on conflict (scenario) do nothing;
+
 create index if not exists sim_runs_character_idx on sim_runs (character_name, scenario, run_date desc);
+create index if not exists sim_runs_queue_idx on sim_runs (scenario, run_date, status, next_retry_at);
 create index if not exists sim_run_items_run_idx on sim_run_items (sim_run_id);
 create index if not exists droptimizer_payloads_lookup_idx on droptimizer_payloads (character_name, scenario);

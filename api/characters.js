@@ -6,7 +6,7 @@
  * DELETE /api/characters?name=X    → delete one character (requires X-Write-Token)
  *
  * Row shape (DB → client camelCase conversion):
- *   name, realName, class, spec, role, isMain, realm, altOf, reportUrl, droptimizerUrl
+ *   name, class, spec, role, isMain, realm, altOf, reportUrl, droptimizerUrl
  */
 
 import { getSupabase, isConfigured } from './_supabase.js'
@@ -14,7 +14,6 @@ import { getSupabase, isConfigured } from './_supabase.js'
 function toRow(m) {
   return {
     name:            m.name,
-    real_name:       m.realName      ?? m.real_name      ?? null,
     class:           m.class         ?? '',
     spec:            m.spec          ?? '',
     role:            m.role          ?? 'dps',
@@ -30,7 +29,6 @@ function toRow(m) {
 function toMember(row) {
   return {
     name:           row.name,
-    realName:       row.real_name       ?? '',
     class:          row.class           ?? '',
     spec:           row.spec            ?? '',
     role:           row.role            ?? 'dps',
@@ -60,7 +58,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('characters')
-      .select('*')
+      .select('name, class, spec, role, is_main, realm, alt_of, report_url, droptimizer_url')
       .order('is_main', { ascending: false })
       .order('name')
 

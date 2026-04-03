@@ -101,7 +101,6 @@
     "members": [
       {
         "name": "Whooplol",
-        "realName": "Rasmus",
         "class": "Mage",
         "spec": "Frost",
         "role": "dps",
@@ -111,7 +110,6 @@
       },
       {
         "name": "Krypts",
-        "realName": "Victor",
         "class": "",
         "spec": "",
         "role": "dps",
@@ -121,7 +119,6 @@
       },
       {
         "name": "Mufuzu",
-        "realName": "Simon",
         "class": "",
         "spec": "",
         "role": "dps",
@@ -131,7 +128,6 @@
       },
       {
         "name": "Hellmeister",
-        "realName": "Svendsen",
         "class": "",
         "spec": "",
         "role": "dps",
@@ -141,7 +137,6 @@
       },
       {
         "name": "Chenex",
-        "realName": "Tofte",
         "class": "",
         "spec": "",
         "role": "dps",
@@ -151,7 +146,6 @@
       },
       {
         "name": "Dostoblast",
-        "realName": "Victor",
         "class": "",
         "spec": "",
         "role": "dps",

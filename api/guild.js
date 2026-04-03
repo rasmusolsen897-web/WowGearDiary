@@ -14,6 +14,31 @@ import { kv } from '@vercel/kv'
 
 const GUILD_KEY = 'wow-gear-diary:guild'
 
+function sanitizeMember(member) {
+  if (!member || typeof member !== 'object') return member
+  const { realName, real_name, ...rest } = member
+  return rest
+}
+
+function sanitizeGuild(guild) {
+  if (!guild || typeof guild !== 'object') return { guild, changed: false }
+
+  let changed = false
+  const members = Array.isArray(guild.members)
+    ? guild.members.map((member) => {
+      if (member && typeof member === 'object' && ('realName' in member || 'real_name' in member)) {
+        changed = true
+      }
+      return sanitizeMember(member)
+    })
+    : guild.members
+
+  return {
+    guild: changed ? { ...guild, members } : guild,
+    changed,
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
@@ -29,7 +54,13 @@ export default async function handler(req, res) {
   // ── GET — read guild (public) ───────────────────────────────────────────────
   if (req.method === 'GET') {
     try {
-      const guild = await kv.get(GUILD_KEY)
+      const storedGuild = await kv.get(GUILD_KEY)
+      const { guild, changed } = sanitizeGuild(storedGuild)
+
+      if (changed && guild) {
+        await kv.set(GUILD_KEY, guild)
+      }
+
       return res.status(200).json(guild ?? null)
     } catch (err) {
       console.error('[api/guild GET]', err.message)
@@ -54,7 +85,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, validated: true })
       }
 
-      await kv.set(GUILD_KEY, req.body)
+      await kv.set(GUILD_KEY, sanitizeGuild(req.body).guild)
       return res.status(200).json({ ok: true })
     } catch (err) {
       console.error('[api/guild POST]', err.message)

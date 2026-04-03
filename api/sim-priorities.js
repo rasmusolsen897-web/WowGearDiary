@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   const supabase = getSupabase()
   const { data: runs, error } = await supabase
     .from('sim_runs')
-    .select('id, scenario, status, run_date, started_at, completed_at, error_message, report_url, base_dps, difficulty')
+    .select('id, scenario, status, run_date, started_at, completed_at, error_message, report_url, base_dps, difficulty, attempt_count, next_retry_at')
     .eq('character_name', character)
     .in('scenario', Object.keys(DROPTIMIZER_SCENARIOS))
     .order('run_date', { ascending: false })

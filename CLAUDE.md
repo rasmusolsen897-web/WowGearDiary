@@ -156,7 +156,7 @@ raidBossPriority[] — boss, priority ('high'|'medium'|'low'), drops[]
 dungeonPriority[]  — dungeon, drops (count), note
 gamePlan     — thisWeek[], thursday[], afterRaid[]
 guild        — { name, region, realm, members[] }
-             — members[]: { name, realName, class, spec, role, isMain, realm, altOf }
+             — members[]: { name, class, spec, role, isMain, realm, altOf }
 ```
 
 ## Color System (CSS Variables — defined in src/index.css)

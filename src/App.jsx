@@ -8,22 +8,40 @@ import Settings from './components/Settings.jsx'
 const GUILD_STORAGE_KEY  = 'wow-gear-diary:guild'
 const TOKEN_STORAGE_KEY  = 'wow-gear-diary:write-token'
 
+function sanitizeMember(member) {
+  if (!member || typeof member !== 'object') return member
+  const { realName, real_name, ...rest } = member
+  return rest
+}
+
+function sanitizeMembers(members) {
+  return Array.isArray(members) ? members.map(sanitizeMember) : []
+}
+
+function sanitizeGuild(guild) {
+  if (!guild || typeof guild !== 'object') return guild
+  return {
+    ...guild,
+    members: sanitizeMembers(guild.members),
+  }
+}
+
 function loadGuild() {
   try {
     const stored = localStorage.getItem(GUILD_STORAGE_KEY)
     if (stored) {
-      const parsed = JSON.parse(stored)
+      const parsed = sanitizeGuild(JSON.parse(stored))
       // Merge: add any new members from data.json that aren't in localStorage yet
       const storedNames = new Set(parsed.members.map(m => m.name.toLowerCase()))
-      const newMembers  = data.guild.members.filter(m => !storedNames.has(m.name.toLowerCase()))
+      const newMembers  = sanitizeMembers(data.guild.members).filter(m => !storedNames.has(m.name.toLowerCase()))
       return { ...parsed, members: [...parsed.members, ...newMembers] }
     }
   } catch {}
-  return data.guild
+  return sanitizeGuild(data.guild)
 }
 
 function saveGuild(guild) {
-  try { localStorage.setItem(GUILD_STORAGE_KEY, JSON.stringify(guild)) } catch {}
+  try { localStorage.setItem(GUILD_STORAGE_KEY, JSON.stringify(sanitizeGuild(guild))) } catch {}
 }
 
 function loadWriteToken() {
@@ -41,7 +59,7 @@ async function postGuildToApi(guild, token) {
   return fetch('/api/guild', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Write-Token': token },
-    body: JSON.stringify(guild),
+    body: JSON.stringify(sanitizeGuild(guild)),
   })
 }
 
@@ -49,7 +67,7 @@ async function postCharactersToApi(members, token) {
   return fetch('/api/characters', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Write-Token': token },
-    body: JSON.stringify({ characters: members }),
+    body: JSON.stringify({ characters: sanitizeMembers(members) }),
   }).catch(() => {}) // best-effort, don't block
 }
 
@@ -74,27 +92,30 @@ export default function App() {
       fetch('/api/guild', sig).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/characters', sig).then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([remote, supaChars]) => {
+      const sanitizedRemote = sanitizeGuild(remote)
+      const sanitizedSupaChars = sanitizeMembers(supaChars)
+
       setGuildState(prev => {
         let updated = prev
 
         // Apply guild metadata (name, realm, region) from KV
-        if (remote) {
+        if (sanitizedRemote) {
           updated = {
             ...updated,
-            name:   remote.name   ?? updated.name,
-            realm:  remote.realm  ?? updated.realm,
-            region: remote.region ?? updated.region,
+            name:   sanitizedRemote.name   ?? updated.name,
+            realm:  sanitizedRemote.realm  ?? updated.realm,
+            region: sanitizedRemote.region ?? updated.region,
           }
         }
 
         // Supabase characters are source of truth; KV members are fallback
-        if (supaChars?.length) {
-          updated = { ...updated, members: supaChars }
-        } else if (remote?.members?.length) {
-          updated = { ...updated, members: remote.members }
+        if (sanitizedSupaChars.length) {
+          updated = { ...updated, members: sanitizedSupaChars }
+        } else if (sanitizedRemote?.members?.length) {
+          updated = { ...updated, members: sanitizedRemote.members }
           // Seed Supabase if empty and we have a write token
           const token = writeTokenRef.current
-          if (token) postCharactersToApi(remote.members, token)
+          if (token) postCharactersToApi(sanitizedRemote.members, token)
         }
 
         saveGuild(updated)
@@ -108,7 +129,9 @@ export default function App() {
   // Central setter — writes to localStorage and (if token set) syncs to API + Supabase
   function setGuild(updaterOrValue) {
     setGuildState(prev => {
-      const updated = typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue
+      const updated = sanitizeGuild(
+        typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue,
+      )
       saveGuild(updated)
       const token = writeTokenRef.current
       if (token) {

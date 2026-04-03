@@ -131,7 +131,7 @@ SUPABASE_SERVICE_ROLE_KEY   Service role / secret API key
 CREATE TABLE characters (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   name text NOT NULL UNIQUE,
-  real_name text, class text DEFAULT '', spec text DEFAULT '',
+  class text DEFAULT '', spec text DEFAULT '',
   role text DEFAULT 'dps', is_main boolean DEFAULT true,
   realm text DEFAULT '', alt_of text,
   report_url text, droptimizer_url text,

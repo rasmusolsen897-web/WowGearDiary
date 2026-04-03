@@ -87,7 +87,6 @@ function CharacterRow({ member, mainNames, onChange, onRemove }) {
       {!expanded && (
         <div className="char-row" style={{ borderLeftColor: nameColor }}>
           <span style={{ fontWeight: 700, color: nameColor, minWidth: 80, fontSize: '0.9rem' }}>{member.name || '—'}</span>
-          {member.realName && <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>({member.realName})</span>}
           {!member.isMain && (
             <span style={{ fontSize: '0.68rem', color: 'var(--frost-blue)', border: '1px solid rgba(105,204,255,0.4)', borderRadius: '10px', padding: '1px 6px', whiteSpace: 'nowrap' }}>alt</span>
           )}
@@ -110,12 +109,6 @@ function CharacterRow({ member, mainNames, onChange, onRemove }) {
               onChange={(e) => onChange({ ...member, name: e.target.value })}
               placeholder="Character name"
               style={{ ...inputStyle, flex: 2, minWidth: 120 }}
-            />
-            <input
-              value={member.realName ?? ''}
-              onChange={(e) => onChange({ ...member, realName: e.target.value })}
-              placeholder="Real name"
-              style={{ ...inputStyle, flex: 2, minWidth: 100 }}
             />
             <input
               value={member.realm ?? ''}
@@ -175,7 +168,7 @@ function CharacterRow({ member, mainNames, onChange, onRemove }) {
 // ── Add Character Form ────────────────────────────────────────────────────────
 
 function AddCharForm({ mainNames, onAdd, onCancel }) {
-  const [draft, setDraft] = useState({ name: '', realName: '', realm: '', class: '', role: 'dps', isMain: true, altOf: null, spec: '' })
+  const [draft, setDraft] = useState({ name: '', realm: '', class: '', role: 'dps', isMain: true, altOf: null, spec: '' })
   const [error, setError] = useState('')
 
   const submit = () => {
@@ -193,12 +186,6 @@ function AddCharForm({ mainNames, onAdd, onCancel }) {
           onChange={(e) => { setDraft(d => ({ ...d, name: e.target.value })); setError('') }}
           placeholder="Character name *"
           style={{ ...inputStyle, flex: 2, minWidth: 120 }}
-        />
-        <input
-          value={draft.realName}
-          onChange={(e) => setDraft(d => ({ ...d, realName: e.target.value }))}
-          placeholder="Real name"
-          style={{ ...inputStyle, flex: 2, minWidth: 100 }}
         />
         <input
           value={draft.realm}
