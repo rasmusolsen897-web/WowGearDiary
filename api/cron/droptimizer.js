@@ -23,6 +23,18 @@ function todayDateString() {
   return new Date().toISOString().slice(0, 10)
 }
 
+function firstQueryValue(value) {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
+function normalizeQueryValue(value) {
+  const raw = firstQueryValue(value)
+  if (raw == null) return null
+  const normalized = String(raw).trim()
+  return normalized || null
+}
+
 async function loadGuildMeta() {
   if (process.env.KV_REST_API_URL) {
     try {
@@ -193,6 +205,18 @@ export default async function handler(req, res) {
     return res.status(503).json({ ok: false, error: 'Supabase not configured' })
   }
 
+  const requestedCharacter = normalizeQueryValue(req.query?.character)
+  const requestedCharacterKey = requestedCharacter?.toLowerCase() ?? null
+  const requestedScenario = normalizeQueryValue(req.query?.scenario) ?? null
+  if (requestedScenario && !SCENARIO_ORDER.includes(requestedScenario)) {
+    return res.status(400).json({
+      ok: false,
+      error: `Unknown scenario "${requestedScenario}"`,
+      supportedScenarios: SCENARIO_ORDER,
+    })
+  }
+  const scenarioOrder = requestedScenario ? [requestedScenario] : SCENARIO_ORDER
+
   const guild = await loadGuildMeta()
   const region = guild?.region ?? FALLBACK_GUILD.region
   const defaultRealm = guild?.realm ?? FALLBACK_GUILD.realm
@@ -209,6 +233,17 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: error.message })
   }
 
+  const selectedCharacters = requestedCharacterKey
+    ? (characters ?? []).filter((member) => member.name?.trim().toLowerCase() === requestedCharacterKey)
+    : (characters ?? [])
+
+  if (requestedCharacterKey && !selectedCharacters.length) {
+    return res.status(404).json({
+      ok: false,
+      error: `Character "${requestedCharacter}" not found`,
+    })
+  }
+
   const runDate = todayDateString()
   let raidsid
 
@@ -223,11 +258,15 @@ export default async function handler(req, res) {
     ok: true,
     runDate,
     region,
+    filters: {
+      character: requestedCharacter,
+      scenario: requestedScenario,
+    },
     processed: [],
     skipped: [],
   }
 
-  for (const member of characters ?? []) {
+  for (const member of selectedCharacters) {
     const realm = member.realm?.trim() || defaultRealm
     if (!member.name || !realm || !region) {
       summary.skipped.push({
@@ -238,7 +277,7 @@ export default async function handler(req, res) {
     }
 
     const memberSummary = { name: member.name, realm, scenarios: {} }
-    for (const scenarioKey of SCENARIO_ORDER) {
+    for (const scenarioKey of scenarioOrder) {
       memberSummary.scenarios[scenarioKey] = await runScenarioForCharacter(supabase, {
         member,
         region,

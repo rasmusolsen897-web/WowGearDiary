@@ -302,13 +302,19 @@ export function buildScenarioPayload(scenarioKey, { name, realm, region }) {
   if (!scenario) throw new Error(`Unknown Droptimizer scenario: ${scenarioKey}`)
 
   const envPayload = readJsonEnv(scenario.envVar) ?? {}
+  const hasExactDroptimizer = envPayload.droptimizer && typeof envPayload.droptimizer === 'object'
+  const basePayload = hasExactDroptimizer
+    ? envPayload
+    : {
+        ...scenario.defaults,
+        ...envPayload,
+      }
   const envArmory = envPayload.armory && typeof envPayload.armory === 'object'
     ? envPayload.armory
     : {}
 
   return {
-    ...envPayload,
-    ...scenario.defaults,
+    ...basePayload,
     reportName: envPayload.reportName ?? scenario.reportName,
     baseActorName: envPayload.baseActorName ?? name,
     armory: {

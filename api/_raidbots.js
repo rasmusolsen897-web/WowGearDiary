@@ -125,19 +125,21 @@ function buildDroptimizerPayload(droptimizer, character) {
     throw new Error('Droptimizer payload requires region, realm, and name')
   }
 
+  const actor = droptimizer?.character ?? character
   const scenarioOptions = droptimizer?.droptimizer && typeof droptimizer.droptimizer === 'object'
     ? droptimizer.droptimizer
     : {}
-  const classId = character.class?.id ?? character.classs?.id ?? null
-  const specId = character.spec?.id ?? character.talentLoadout?.spec?.id ?? null
+  const classId = actor.class?.id ?? actor.classs?.id ?? null
+  const specId = actor.spec?.id ?? actor.talentLoadout?.spec?.id ?? null
 
   const nestedDroptimizer = {
     ...scenarioOptions,
-    equipped: character.items ?? {},
+    equipped: scenarioOptions.equipped ?? actor.items ?? {},
     difficulty: scenarioOptions.difficulty ?? droptimizer?.difficulty ?? 'raid-heroic',
     classId,
     specId,
-    faction: scenarioOptions.faction ?? normalizeFaction(character.faction),
+    lootSpecId: scenarioOptions.lootSpecId ?? specId,
+    faction: scenarioOptions.faction ?? normalizeFaction(actor.faction),
   }
 
   if (Array.isArray(droptimizer?.instances) && !nestedDroptimizer.instances) {
@@ -157,15 +159,20 @@ function buildDroptimizerPayload(droptimizer, character) {
   }
 
   return {
+    ...droptimizer,
     type: 'droptimizer',
     reportName: droptimizer?.reportName ?? `Droptimizer • ${name}`,
     baseActorName: droptimizer?.baseActorName ?? name,
     armory: {
       region: String(region).trim().toLowerCase(),
       realm: slugifyRealm(realm),
-      name: slugifyName(name),
+      name,
     },
-    character,
+    character: actor,
+    spec: droptimizer?.spec ?? actor.spec?.name ?? actor.talentLoadout?.spec?.name ?? null,
+    gearsets: Array.isArray(droptimizer?.gearsets) ? droptimizer.gearsets : [],
+    talents: Object.prototype.hasOwnProperty.call(droptimizer ?? {}, 'talents') ? droptimizer.talents : null,
+    talentSets: Array.isArray(droptimizer?.talentSets) ? droptimizer.talentSets : [],
     simcVersion: droptimizer?.simcVersion ?? 'weekly',
     iterations: droptimizer?.iterations ?? 'smart',
     smartHighPrecision: droptimizer?.smartHighPrecision ?? false,
