@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv'
 import { buildScenarioPayload, DROPTIMIZER_SCENARIOS, extractReportId, sleep } from '../_droptimizer.js'
-import { pollRaidbotsJob, submitRaidbotsJob } from '../_raidbots.js'
+import { createRaidbotsSession, pollRaidbotsSim, submitRaidbotsDroptimizer } from '../_raidbots.js'
 import { fetchAndParseRaidbotsReport } from '../_raidbots-report.js'
 import { getSupabase, isConfigured } from '../_supabase.js'
 
@@ -99,7 +99,7 @@ async function replaceRunItems(supabase, runId, upgrades) {
   if (error) throw error
 }
 
-async function runScenarioForCharacter(supabase, { member, region, realm, scenarioKey, runDate }) {
+async function runScenarioForCharacter(supabase, { member, region, realm, scenarioKey, runDate, raidsid }) {
   const scenario = DROPTIMIZER_SCENARIOS[scenarioKey]
   const run = await createOrResetRun(supabase, {
     characterName: member.name,
@@ -119,19 +119,19 @@ async function runScenarioForCharacter(supabase, { member, region, realm, scenar
         region,
       })
 
-      const { jobId } = await submitRaidbotsJob({
-        type: 'droptimizer',
+      const { simId } = await submitRaidbotsDroptimizer({
+        session: raidsid,
         droptimizer: droptimizerPayload,
       })
 
       await updateRun(supabase, run.id, {
-        raidbots_job_id: jobId,
+        raidbots_job_id: simId,
         error_message: null,
       })
 
       let resultUrl = null
       for (let pollIndex = 0; pollIndex < MAX_POLLS; pollIndex += 1) {
-        const polled = await pollRaidbotsJob(jobId)
+        const polled = await pollRaidbotsSim(simId)
         if (polled.status === 'complete') {
           resultUrl = polled.resultUrl
           break
@@ -210,6 +210,15 @@ export default async function handler(req, res) {
   }
 
   const runDate = todayDateString()
+  let raidsid
+
+  try {
+    raidsid = await createRaidbotsSession()
+  } catch (sessionError) {
+    console.error('[cron/droptimizer auth]', sessionError.message)
+    return res.status(500).json({ ok: false, error: sessionError.message })
+  }
+
   const summary = {
     ok: true,
     runDate,
@@ -236,6 +245,7 @@ export default async function handler(req, res) {
         realm,
         scenarioKey,
         runDate,
+        raidsid,
       })
     }
     summary.processed.push(memberSummary)

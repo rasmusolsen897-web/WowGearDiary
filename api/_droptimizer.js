@@ -5,11 +5,12 @@ export const DROPTIMIZER_SCENARIOS = {
     sourceType: 'raid_boss',
     sourceLabel: 'Boss',
     difficulty: 'raid-heroic',
+    reportName: 'Droptimizer • Season 1 Raids • Heroic',
     envVar: 'RAIDBOTS_DROPTIMIZER_RAID_JSON',
     defaults: {
-      source: 'raid',
       difficulty: 'heroic',
       raidDifficulty: 'heroic',
+      instances: [1307, 1308],
     },
   },
   mythic_plus_all: {
@@ -18,9 +19,9 @@ export const DROPTIMIZER_SCENARIOS = {
     sourceType: 'mythic_plus_dungeon',
     sourceLabel: 'Dungeon',
     difficulty: 'mythic-plus',
+    reportName: 'Droptimizer • Mythic+ Dungeons • Mythic 10',
     envVar: 'RAIDBOTS_DROPTIMIZER_MYTHIC_PLUS_JSON',
     defaults: {
-      source: 'mythic-plus',
       allDungeons: true,
       mythicPlusAll: true,
       keystoneLevel: 10,
@@ -301,9 +302,21 @@ export function buildScenarioPayload(scenarioKey, { name, realm, region }) {
   if (!scenario) throw new Error(`Unknown Droptimizer scenario: ${scenarioKey}`)
 
   const envPayload = readJsonEnv(scenario.envVar) ?? {}
+  const envArmory = envPayload.armory && typeof envPayload.armory === 'object'
+    ? envPayload.armory
+    : {}
+
   return {
-    ...scenario.defaults,
     ...envPayload,
+    ...scenario.defaults,
+    reportName: envPayload.reportName ?? scenario.reportName,
+    baseActorName: envPayload.baseActorName ?? name,
+    armory: {
+      ...envArmory,
+      region,
+      realm,
+      name,
+    },
     region,
     realm,
     name,
