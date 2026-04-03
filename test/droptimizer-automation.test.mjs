@@ -25,10 +25,12 @@ test('queue ordering prefers Whooplol, then mains, then alphabetical name', () =
 test('classifyDroptimizerFailure treats 429 as transient and payload errors as permanent', () => {
   const transient = classifyDroptimizerFailure('Raidbots Droptimizer submit failed (429): Too Many Requests')
   const permanent = classifyDroptimizerFailure('Raidbots Droptimizer submit failed (400): {"error":"droptimizer_no_actors"}')
+  const localPayloadIssue = classifyDroptimizerFailure('Droptimizer payload is missing droptimizerItems')
 
   assert.equal(transient.kind, 'transient')
   assert.equal(permanent.kind, 'permanent')
   assert.equal(permanent.errorCode, 'droptimizer_no_actors')
+  assert.equal(localPayloadIssue.kind, 'permanent')
 })
 
 test('retry delay schedule is one hour, then two hours, then exhausted', () => {
