@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { timeAgo } from '../utils/timeAgo.js'
 
 /**
  * Settings — slide-in drawer with 3 tabs: Guild, Characters, API.
@@ -64,6 +65,176 @@ function ApiStatusRow({ label, endpoint, method = 'GET', body }) {
       >
         {status === 'checking' ? '…' : 'Test'}
       </button>
+    </div>
+  )
+}
+
+function formatShortTime(value) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function formatRunLabel(run) {
+  if (!run?.character) return 'None'
+  const parts = [run.character]
+  if (run.attemptCount > 0) parts.push(`attempt ${run.attemptCount}`)
+  if (run.status) parts.push(run.status)
+  return parts.join(' • ')
+}
+
+function formatNextRunDetail(nextQueuedRun, queueHeadRun) {
+  if (nextQueuedRun?.character) return formatRunLabel(nextQueuedRun)
+  if (!queueHeadRun?.character) return 'Queue empty'
+  const retryAt = formatShortTime(queueHeadRun.nextRetryAt)
+  return retryAt
+    ? `${formatRunLabel(queueHeadRun)} • waiting until ${retryAt}`
+    : formatRunLabel(queueHeadRun)
+}
+
+function formatQueuePreview(queuePreview = []) {
+  if (!queuePreview.length) return 'No queued characters'
+  return queuePreview
+    .map((run) => {
+      if (run.isEligible || !run.nextRetryAt) return run.character
+      const retryAt = formatShortTime(run.nextRetryAt)
+      return retryAt ? `${run.character} (${retryAt})` : run.character
+    })
+    .join(' • ')
+}
+
+function DroptimizerAutomationStatus({ enabled }) {
+  const [status, setStatus] = useState('idle')
+  const [detail, setDetail] = useState('')
+  const [data, setData] = useState(null)
+
+  async function loadStatus() {
+    setStatus((current) => (current === 'ok' ? 'refreshing' : 'loading'))
+    setDetail('')
+
+    try {
+      const res = await fetch('/api/droptimizer-status')
+      if (res.status === 404) {
+        setStatus('error')
+        setDetail('Automation status API not deployed')
+        return
+      }
+
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setStatus('error')
+        setDetail(payload.error ?? `HTTP ${res.status}`)
+        return
+      }
+
+      if (payload.available === false) {
+        setStatus('empty')
+        setData(payload)
+        setDetail(payload.reason ?? 'Automation status unavailable')
+        return
+      }
+
+      setData(payload)
+      setStatus('ok')
+    } catch (error) {
+      setStatus('error')
+      setDetail(error.message)
+    }
+  }
+
+  useEffect(() => {
+    if (!enabled) return undefined
+
+    let active = true
+    async function loadIfActive() {
+      if (!active) return
+      await loadStatus()
+    }
+
+    loadIfActive()
+    const intervalId = setInterval(loadIfActive, 60_000)
+
+    return () => {
+      active = false
+      clearInterval(intervalId)
+    }
+  }, [enabled])
+
+  const schedulerUpdatedAgo = data?.scheduler?.updatedAt
+    ? timeAgo(Date.parse(data.scheduler.updatedAt))
+    : null
+  const lastSeededDate = data?.scheduler?.lastSeededRunDate ?? '—'
+  const counts = data?.counts ?? {}
+
+  return (
+    <div style={automationCardStyle}>
+      <div style={automationHeaderStyle}>
+        <div>
+          <h4 style={automationTitleStyle}>Droptimizer Automation</h4>
+          <div style={automationMetaStyle}>
+            {schedulerUpdatedAgo
+              ? `Scheduler updated ${schedulerUpdatedAgo}`
+              : 'Read-only production queue status'}
+          </div>
+        </div>
+        <button
+          onClick={loadStatus}
+          disabled={status === 'loading' || status === 'refreshing'}
+          style={{
+            ...actionBtn,
+            borderColor: 'var(--frost-blue)',
+            color: 'var(--frost-blue)',
+            opacity: status === 'loading' || status === 'refreshing' ? 0.55 : 1,
+          }}
+        >
+          {status === 'loading' || status === 'refreshing' ? '…' : 'Refresh'}
+        </button>
+      </div>
+
+      {detail && (
+        <div style={status === 'error' ? automationErrorStyle : automationMutedStyle}>
+          {detail}
+        </div>
+      )}
+
+      {status === 'ok' && data && (
+        <>
+          <div style={automationGridStyle}>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Active</span>
+              <span>{formatRunLabel(data.activeRun)}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Next Up</span>
+              <span>{formatNextRunDetail(data.nextQueuedRun, data.queueHeadRun)}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Queue</span>
+              <span>{formatQueuePreview(data.queuePreview)}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Today</span>
+              <span>
+                {counts.queued ?? 0} queued • {counts.retryable ?? 0} retryable • {counts.completed ?? 0} completed • {counts.failed ?? 0} failed
+              </span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Run Date</span>
+              <span>{data.runDate ?? '—'}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Seeded</span>
+              <span>{lastSeededDate}</span>
+            </div>
+          </div>
+          {data.scheduler?.lockHeld && (
+            <div style={automationMutedStyle}>
+              Scheduler lock held until {formatShortTime(data.scheduler.lockExpiresAt) ?? 'soon'}.
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -459,6 +630,8 @@ export default function Settings({ open, onClose, guild, onGuildChange, writeTok
                 label="Guild Sync — KV read"
                 endpoint="/api/guild"
               />
+              <div style={{ height: '1rem' }} />
+              <DroptimizerAutomationStatus enabled={activeTab === 'api'} />
             </section>
           )}
         </div>
@@ -498,4 +671,60 @@ const sectionTitleStyle = {
 const addBtnStyle = {
   background: '#1a1a2e', border: '1px solid var(--frost-blue)', color: 'var(--frost-blue)',
   borderRadius: '5px', padding: '0.35rem 0.9rem', fontSize: '0.82rem', cursor: 'pointer',
+}
+
+const automationCardStyle = {
+  border: '1px solid var(--border)',
+  borderRadius: '8px',
+  padding: '0.9rem',
+  background: 'rgba(255,255,255,0.02)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.75rem',
+}
+
+const automationHeaderStyle = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  gap: '0.75rem',
+}
+
+const automationTitleStyle = {
+  margin: 0,
+  fontSize: '0.86rem',
+  color: 'var(--frost-blue)',
+}
+
+const automationMetaStyle = {
+  fontSize: '0.75rem',
+  color: 'var(--text-muted)',
+  marginTop: '0.2rem',
+}
+
+const automationGridStyle = {
+  display: 'grid',
+  gap: '0.6rem',
+}
+
+const automationItemStyle = {
+  display: 'grid',
+  gap: '0.18rem',
+}
+
+const automationLabelStyle = {
+  fontSize: '0.72rem',
+  color: 'var(--text-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+}
+
+const automationMutedStyle = {
+  fontSize: '0.78rem',
+  color: 'var(--text-muted)',
+}
+
+const automationErrorStyle = {
+  fontSize: '0.78rem',
+  color: '#ff7070',
 }
