@@ -103,17 +103,3 @@ export function useRaidbotsReport(reportUrl) {
 
   return { ...result, reportId, loading, error, fetchedAt }
 }
-
-/**
- * Helpers for persisting report URLs per member in localStorage.
- */
-export function getStoredReportUrl(memberKey) {
-  try { return localStorage.getItem(`raidbots-url:${memberKey}`) ?? '' } catch { return '' }
-}
-
-export function setStoredReportUrl(memberKey, url) {
-  try {
-    if (url) localStorage.setItem(`raidbots-url:${memberKey}`, url)
-    else localStorage.removeItem(`raidbots-url:${memberKey}`)
-  } catch {}
-}

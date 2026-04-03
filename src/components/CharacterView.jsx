@@ -2,8 +2,8 @@ import data from '../data.json'
 import { useStorage } from '../hooks/index.js'
 import { useBlizzardAPI, useBlizzardMedia } from '../hooks/useBlizzardAPI.js'
 import { useCharacterParses } from '../hooks/useWCLAPI.js'
-import { useRaidbotsReport, getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
-import { useDroptimizerReport, getStoredDroptimizerUrl } from '../hooks/useDroptimizerReport.js'
+import { useRaidbotsReport } from '../hooks/useRaidbotsReport.js'
+import { useDroptimizerReport } from '../hooks/useDroptimizerReport.js'
 import { useSimPriorities } from '../hooks/useSimPriorities.js'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { timeAgo } from '../utils/timeAgo.js'
@@ -168,9 +168,7 @@ function AutomatedPrioritiesSection({ member }) {
 // ── RaidbotsSection ───────────────────────────────────────────────────────────
 
 function RaidbotsSection({ member, region, realm, onUpdateMember, writeToken }) {
-  const memberKey   = `${region}:${realm}:${member.name}`.toLowerCase()
-  // Prefer URL from Supabase-synced member object; fall back to localStorage
-  const [reportUrl, setReportUrl] = useState(() => member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey) ?? '')
+  const [reportUrl, setReportUrl] = useState(() => member.reportUrl ?? member.report_url ?? '')
   const [editing, setEditing]     = useState(false)
   const [draft, setDraft]         = useState('')
 
@@ -204,8 +202,8 @@ function RaidbotsSection({ member, region, realm, onUpdateMember, writeToken }) 
 
   // Sync incoming member.reportUrl changes (e.g. loaded from Supabase after mount)
   useEffect(() => {
-    const remote = member.reportUrl ?? member.report_url
-    if (remote && remote !== reportUrl) setReportUrl(remote)
+    const remote = member.reportUrl ?? member.report_url ?? ''
+    if (remote !== reportUrl) setReportUrl(remote)
   }, [member.reportUrl, member.report_url]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = () => {
@@ -283,9 +281,7 @@ function qualityColor(quality) {
 }
 
 function DroptimizerSection({ member, region, realm, onUpdateMember }) {
-  const memberKey = `${region}:${realm}:${member.name}`.toLowerCase()
-  // Prefer URL from Supabase-synced member object; fall back to localStorage
-  const [reportUrl, setReportUrl] = useState(() => member.droptimizerUrl ?? member.droptimizer_url ?? getStoredDroptimizerUrl(memberKey) ?? '')
+  const [reportUrl, setReportUrl] = useState(() => member.droptimizerUrl ?? member.droptimizer_url ?? '')
   const [editing, setEditing]     = useState(false)
   const [draft, setDraft]         = useState('')
   const [sortKey, setSortKey]     = useState('dpsDelta')
@@ -297,8 +293,8 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
 
   // Sync incoming member.droptimizerUrl changes (e.g. loaded from Supabase after mount)
   useEffect(() => {
-    const remote = member.droptimizerUrl ?? member.droptimizer_url
-    if (remote && remote !== reportUrl) setReportUrl(remote)
+    const remote = member.droptimizerUrl ?? member.droptimizer_url ?? ''
+    if (remote !== reportUrl) setReportUrl(remote)
   }, [member.droptimizerUrl, member.droptimizer_url]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = () => {

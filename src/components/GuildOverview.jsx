@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, memo } from 'react'
 import { useBlizzardAPI, useCharacterParses } from '../hooks/index.js'
-import { useRaidbotsReport, getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
+import { useRaidbotsReport } from '../hooks/useRaidbotsReport.js'
 import { timeAgo } from '../utils/timeAgo.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -77,12 +77,11 @@ function GuildSummaryBar({ memberData }) {
 
 const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMember, onDataLoaded, onParseLoaded, onDpsLoaded }) {
   const effectiveRealm = member.realm?.trim() || realm
-  const memberKey      = `${region}:${effectiveRealm}:${member.name}`.toLowerCase()
 
   const { data, loading: gearLoading, error: gearError, refresh, fetchedAt: blizFetchedAt } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { data: wclData, loading: wclLoading, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
   const refreshAll = useCallback((e) => { e.stopPropagation(); refresh(); refreshWCL() }, [refresh, refreshWCL])
-  const reportUrl = member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey)
+  const reportUrl = member.reportUrl ?? member.report_url ?? ''
   const { dps } = useRaidbotsReport(reportUrl)
 
   // Fix 1: Lift data up via useEffect (not during render)

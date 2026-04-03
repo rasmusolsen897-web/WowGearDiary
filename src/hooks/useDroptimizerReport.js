@@ -2,11 +2,11 @@
  * useDroptimizerReport.js
  *
  * React hook for ingesting Raidbots Droptimizer reports.
- * Mirrors the useRaidbotsReport pattern: proxy fetch → localStorage cache → return state.
+ * Mirrors the useRaidbotsReport pattern: proxy fetch -> localStorage cache -> return state.
  *
  * The /api/raidbots-report proxy detects droptimizer reports and returns the
  * compact normalized shape (type, upgrades[], baseDps, spec, difficulty) instead
- * of the raw 500–800 KB data.json.
+ * of the raw 500-800 KB data.json.
  */
 
 import { useState, useEffect } from 'react'
@@ -28,16 +28,19 @@ function readCache(key) {
     const raw = localStorage.getItem(key)
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
-    if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(key); return null }
+    if (Date.now() - ts > CACHE_TTL) {
+      localStorage.removeItem(key)
+      return null
+    }
     return { data, ts }
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 function writeCache(key, data) {
   try { localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })) } catch {}
 }
-
-// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useDroptimizerReport(reportUrl) {
   const [result, setResult]       = useState(null)
@@ -48,11 +51,22 @@ export function useDroptimizerReport(reportUrl) {
   const reportId = reportIdFromUrl(reportUrl)
 
   useEffect(() => {
-    if (!reportId) { setResult(null); setError(null); setLoading(false); return }
+    if (!reportId) {
+      setResult(null)
+      setError(null)
+      setLoading(false)
+      return
+    }
 
-    const key    = cacheKey(reportId)
+    const key = cacheKey(reportId)
     const cached = readCache(key)
-    if (cached) { setResult(cached.data); setFetchedAt(cached.ts); setLoading(false); setError(null); return }
+    if (cached) {
+      setResult(cached.data)
+      setFetchedAt(cached.ts)
+      setLoading(false)
+      setError(null)
+      return
+    }
 
     let cancelled = false
     setLoading(true)
@@ -73,45 +87,38 @@ export function useDroptimizerReport(reportUrl) {
         if (json?.type !== 'droptimizer') {
           throw new Error('This URL is not a Droptimizer report')
         }
+
         const data = {
-          upgrades:      json.upgrades      ?? [],
-          baseDps:       json.baseDps       ?? 0,
+          upgrades: json.upgrades ?? [],
+          baseDps: json.baseDps ?? 0,
           characterName: json.characterName ?? null,
-          spec:          json.spec          ?? null,
-          difficulty:    json.difficulty    ?? null,
+          spec: json.spec ?? null,
+          difficulty: json.difficulty ?? null,
         }
+
         writeCache(key, data)
         setResult(data)
         setFetchedAt(Date.now())
       })
-      .catch((err) => { if (!cancelled) setError(err.message) })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .catch((err) => {
+        if (!cancelled) setError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
     return () => { cancelled = true }
   }, [reportId])
 
   return {
-    upgrades:      result?.upgrades      ?? null,
-    baseDps:       result?.baseDps       ?? 0,
+    upgrades: result?.upgrades ?? null,
+    baseDps: result?.baseDps ?? 0,
     characterName: result?.characterName ?? null,
-    spec:          result?.spec          ?? null,
-    difficulty:    result?.difficulty    ?? null,
+    spec: result?.spec ?? null,
+    difficulty: result?.difficulty ?? null,
     reportId,
     loading,
     error,
     fetchedAt,
   }
-}
-
-// ── localStorage helpers ──────────────────────────────────────────────────────
-
-export function getStoredDroptimizerUrl(memberKey) {
-  try { return localStorage.getItem(`droptimizer-url:${memberKey}`) ?? '' } catch { return '' }
-}
-
-export function setStoredDroptimizerUrl(memberKey, url) {
-  try {
-    if (url) localStorage.setItem(`droptimizer-url:${memberKey}`, url)
-    else      localStorage.removeItem(`droptimizer-url:${memberKey}`)
-  } catch {}
 }
