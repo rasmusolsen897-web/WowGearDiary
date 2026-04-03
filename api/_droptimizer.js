@@ -176,6 +176,10 @@ function exactPayloadCacheKey(scenarioKey, name) {
   return `${scenarioKey}:${normalizeCharacterName(name)}`
 }
 
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
 async function readStoredExactPayload(scenarioKey, name) {
   const cacheKey = exactPayloadCacheKey(scenarioKey, name)
   if (exactPayloadCache.has(cacheKey)) return exactPayloadCache.get(cacheKey)
@@ -207,6 +211,42 @@ async function readStoredExactPayload(scenarioKey, name) {
     exactPayloadCache.set(cacheKey, null)
     return null
   }
+}
+
+async function readReusableExactPayload(scenarioKey, scenario) {
+  const candidates = Array.isArray(scenario?.exactPayloadCharacters)
+    ? scenario.exactPayloadCharacters
+    : []
+
+  for (const candidate of candidates) {
+    const payload = await readStoredExactPayload(scenarioKey, candidate)
+    if (payload) return payload
+  }
+
+  return null
+}
+
+export function mergeScenarioPayloadTemplate(templatePayload, overridePayload) {
+  const merged = {
+    ...(templatePayload ?? {}),
+    ...(overridePayload ?? {}),
+  }
+
+  if (isPlainObject(templatePayload?.armory) || isPlainObject(overridePayload?.armory)) {
+    merged.armory = {
+      ...(isPlainObject(templatePayload?.armory) ? templatePayload.armory : {}),
+      ...(isPlainObject(overridePayload?.armory) ? overridePayload.armory : {}),
+    }
+  }
+
+  if (isPlainObject(templatePayload?.droptimizer) || isPlainObject(overridePayload?.droptimizer)) {
+    merged.droptimizer = {
+      ...(isPlainObject(templatePayload?.droptimizer) ? templatePayload.droptimizer : {}),
+      ...(isPlainObject(overridePayload?.droptimizer) ? overridePayload.droptimizer : {}),
+    }
+  }
+
+  return merged
 }
 
 function toTitleCase(input) {
@@ -482,18 +522,25 @@ export async function buildScenarioPayload(scenarioKey, { name, realm, region })
     return envPayload
   }
 
-  const reusableEnvPayload = isExactDroptimizerPayload(envPayload)
+  const reusableExactPayload = isExactDroptimizerPayload(envPayload)
+    ? envPayload
+    : await readReusableExactPayload(scenarioKey, scenario)
+  const reusableTemplatePayload = isExactDroptimizerPayload(reusableExactPayload)
+    ? stripActorSpecificFields(reusableExactPayload)
+    : {}
+  const envOverridePayload = isExactDroptimizerPayload(envPayload)
     ? stripActorSpecificFields(envPayload)
     : envPayload
-  const envArmory = reusableEnvPayload.armory && typeof reusableEnvPayload.armory === 'object'
-    ? reusableEnvPayload.armory
+  const mergedPayload = mergeScenarioPayloadTemplate(reusableTemplatePayload, envOverridePayload)
+  const envArmory = mergedPayload.armory && typeof mergedPayload.armory === 'object'
+    ? mergedPayload.armory
     : {}
 
   return {
     ...scenario.defaults,
-    ...reusableEnvPayload,
-    reportName: reusableEnvPayload.reportName ?? scenario.reportName,
-    baseActorName: reusableEnvPayload.baseActorName ?? name,
+    ...mergedPayload,
+    reportName: mergedPayload.reportName ?? scenario.reportName,
+    baseActorName: mergedPayload.baseActorName ?? name,
     armory: {
       ...envArmory,
       region,

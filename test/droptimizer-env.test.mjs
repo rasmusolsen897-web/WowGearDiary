@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildScenarioPayload, DROPTIMIZER_SCENARIOS } from '../api/_droptimizer.js'
+import { buildScenarioPayload, DROPTIMIZER_SCENARIOS, mergeScenarioPayloadTemplate } from '../api/_droptimizer.js'
 
 const RAID_ENV = 'RAIDBOTS_DROPTIMIZER_RAID_JSON'
 const RAID_PART_1 = `${RAID_ENV}_PART_1`
@@ -143,4 +143,28 @@ test('exact payload envs are sanitized before being reused for non-exact charact
     assert.equal(payload.droptimizer.faction, undefined)
     assert.equal(payload.reportDetails, true)
   })
+})
+
+test('template merge preserves droptimizerItems from exact payloads while allowing env overrides', () => {
+  const template = {
+    droptimizerItems: [{ itemId: 1 }],
+    droptimizer: {
+      instances: [1307, 1308],
+      difficulty: 'raid-heroic',
+    },
+    reportDetails: false,
+  }
+  const overrides = {
+    reportDetails: true,
+    droptimizer: {
+      instances: [1315],
+    },
+  }
+
+  const merged = mergeScenarioPayloadTemplate(template, overrides)
+
+  assert.deepEqual(merged.droptimizerItems, [{ itemId: 1 }])
+  assert.deepEqual(merged.droptimizer.instances, [1315])
+  assert.equal(merged.droptimizer.difficulty, 'raid-heroic')
+  assert.equal(merged.reportDetails, true)
 })

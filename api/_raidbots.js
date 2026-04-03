@@ -56,6 +56,52 @@ function normalizeFaction(value) {
   return 'horde'
 }
 
+function getActorProfile(actor) {
+  if (actor?.v2?.profile && typeof actor.v2.profile === 'object') {
+    return actor.v2.profile
+  }
+
+  return actor ?? {}
+}
+
+export function extractRaidbotsActorDetails(actor) {
+  const profile = getActorProfile(actor)
+  const items = actor?.items
+    ?? actor?.gear
+    ?? profile?.items
+    ?? profile?.gear
+    ?? {}
+  const classId = actor?.class?.id
+    ?? actor?.classs?.id
+    ?? actor?.class
+    ?? profile?.character_class?.id
+    ?? profile?.class?.id
+    ?? null
+  const specId = actor?.spec?.id
+    ?? actor?.specId
+    ?? actor?.talentLoadout?.spec?.id
+    ?? profile?.active_spec?.id
+    ?? profile?.spec?.id
+    ?? null
+  const specName = actor?.spec?.name
+    ?? actor?.talentLoadout?.spec?.name
+    ?? profile?.active_spec?.name
+    ?? profile?.spec?.name
+    ?? null
+  const faction = actor?.faction
+    ?? profile?.faction?.type
+    ?? profile?.faction?.name
+    ?? null
+
+  return {
+    items,
+    classId,
+    specId,
+    specName,
+    faction,
+  }
+}
+
 async function loginRaidbotsSession(email, password) {
   const loginRes = await fetch(`${RAIDBOTS_BASE}/api/login`, {
     method: 'POST',
@@ -135,28 +181,25 @@ function buildDroptimizerPayload(droptimizer, character) {
   }
 
   const actor = droptimizer?.character ?? character
+  const actorDetails = extractRaidbotsActorDetails(actor)
   const scenarioOptions = droptimizer?.droptimizer && typeof droptimizer.droptimizer === 'object'
     ? droptimizer.droptimizer
     : {}
   const classId = scenarioOptions.classId
-    ?? actor.class?.id
-    ?? actor.classs?.id
-    ?? actor.class
+    ?? actorDetails.classId
     ?? null
   const specId = scenarioOptions.specId
-    ?? actor.spec?.id
-    ?? actor.specId
-    ?? actor.talentLoadout?.spec?.id
+    ?? actorDetails.specId
     ?? null
 
   const nestedDroptimizer = {
     ...scenarioOptions,
-    equipped: scenarioOptions.equipped ?? actor.items ?? {},
+    equipped: scenarioOptions.equipped ?? actorDetails.items ?? {},
     difficulty: scenarioOptions.difficulty ?? droptimizer?.difficulty ?? 'raid-heroic',
     classId,
     specId,
     lootSpecId: scenarioOptions.lootSpecId ?? specId,
-    faction: scenarioOptions.faction ?? normalizeFaction(actor.faction),
+    faction: scenarioOptions.faction ?? normalizeFaction(actorDetails.faction),
   }
 
   if (Array.isArray(droptimizer?.instances) && !nestedDroptimizer.instances) {
@@ -190,7 +233,7 @@ function buildDroptimizerPayload(droptimizer, character) {
       name,
     },
     character: actor,
-    spec: droptimizer?.spec ?? actor.spec?.name ?? actor.talentLoadout?.spec?.name ?? null,
+    spec: droptimizer?.spec ?? actorDetails.specName,
     gearsets: Array.isArray(droptimizer?.gearsets) ? droptimizer.gearsets : [],
     talents: Object.prototype.hasOwnProperty.call(droptimizer ?? {}, 'talents') ? droptimizer.talents : null,
     talentSets: Array.isArray(droptimizer?.talentSets) ? droptimizer.talentSets : [],
