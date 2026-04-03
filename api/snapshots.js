@@ -53,6 +53,12 @@ export default async function handler(req, res) {
   // ── POST ───────────────────────────────────────────────────────────────────
   if (req.method === 'POST') {
     const { type } = req.query
+    const provided = req.headers['x-write-token']
+    const expected = process.env.GUILD_WRITE_TOKEN
+
+    if (!expected || provided !== expected) {
+      return res.status(401).json({ error: 'Invalid write token' })
+    }
 
     // iLvl snapshot — no write token required (Blizzard data is public knowledge)
     if (type === 'ilvl') {
@@ -76,12 +82,6 @@ export default async function handler(req, res) {
 
     // Sim snapshot — requires write token
     if (type === 'sim') {
-      const provided = req.headers['x-write-token']
-      const expected = process.env.GUILD_WRITE_TOKEN
-      if (!expected || provided !== expected) {
-        return res.status(401).json({ error: 'Invalid write token' })
-      }
-
       const { character_name, dps, report_url, report_type, spec } = req.body ?? {}
       if (!character_name || !dps) {
         return res.status(400).json({ error: 'character_name and dps required' })

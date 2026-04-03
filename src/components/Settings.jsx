@@ -255,10 +255,9 @@ export default function Settings({ open, onClose, guild, onGuildChange, writeTok
     if (!tokenDraft.trim()) return
     setUnlockState('checking')
     try {
-      const res = await fetch('/api/guild', {
+      const res = await fetch('/api/guild?validate=1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Write-Token': tokenDraft.trim() },
-        body: JSON.stringify(localGuild),
       })
       if (res.ok) {
         onWriteTokenChange(tokenDraft.trim())

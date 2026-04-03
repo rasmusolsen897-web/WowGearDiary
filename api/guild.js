@@ -50,6 +50,10 @@ export default async function handler(req, res) {
     }
 
     try {
+      if (req.query.validate === '1') {
+        return res.status(200).json({ ok: true, validated: true })
+      }
+
       await kv.set(GUILD_KEY, req.body)
       return res.status(200).json({ ok: true })
     } catch (err) {

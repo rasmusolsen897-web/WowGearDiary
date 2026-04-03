@@ -106,11 +106,6 @@ export default async function handler(req, res) {
   const { action, region = 'eu', realm, name } = req.query
 
   try {
-    if (action === 'token') {
-      const access_token = await getBlizzardToken(region)
-      return res.status(200).json({ access_token })
-    }
-
     // All other actions need a token first
     const token = await getBlizzardToken(region)
 
