@@ -20,10 +20,16 @@ const SIM_TYPE_MAP = {
   droptimizer:  '/api/job/droptimizer',
 }
 
+function hasValidWriteToken(req) {
+  const provided = req.headers['x-write-token']
+  const expected = process.env.GUILD_WRITE_TOKEN
+  return !!expected && provided === expected
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Write-Token')
   if (req.method === 'OPTIONS') return res.status(200).end()
 
   const session = process.env.RAIDBOTS_SESSION
@@ -31,6 +37,10 @@ export default async function handler(req, res) {
 
   if (!session || !csrf) {
     return res.status(503).json({ error: 'RAIDBOTS_SESSION and RAIDBOTS_CSRF must be set' })
+  }
+
+  if (!hasValidWriteToken(req)) {
+    return res.status(401).json({ error: 'Invalid write token' })
   }
 
   try {

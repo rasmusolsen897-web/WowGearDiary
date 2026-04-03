@@ -96,6 +96,9 @@ export default async function handler(req, res) {
 
   const { id } = req.query
   if (!id) return res.status(400).json({ error: 'id query param required' })
+  if (!/^[A-Za-z0-9]{6,64}$/.test(id)) {
+    return res.status(400).json({ error: 'invalid report id' })
+  }
 
   const baseUrl = `https://www.raidbots.com/simbot/report/${id}`
 
