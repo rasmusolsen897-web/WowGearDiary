@@ -135,7 +135,7 @@ test('exact payload envs are sanitized before being reused for non-exact charact
     assert.equal(payload.armory.name, 'Altmage')
     assert.equal(payload.armory.realm, 'Tarren Mill')
     assert.equal(payload.character, undefined)
-    assert.equal(payload.droptimizerItems, undefined)
+    assert.deepEqual(payload.droptimizerItems, [{ itemId: 1 }])
     assert.deepEqual(payload.droptimizer.instances, [1307, 1308])
     assert.equal(payload.droptimizer.classId, undefined)
     assert.equal(payload.droptimizer.specId, undefined)

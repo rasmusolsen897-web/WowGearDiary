@@ -175,6 +175,10 @@ function buildDroptimizerPayload(droptimizer, character) {
     nestedDroptimizer.keystoneLevel = droptimizer.keystoneLevel
   }
 
+  const droptimizerItems = Array.isArray(droptimizer?.droptimizerItems)
+    ? droptimizer.droptimizerItems
+    : []
+
   return {
     ...droptimizer,
     type: 'droptimizer',
@@ -199,6 +203,7 @@ function buildDroptimizerPayload(droptimizer, character) {
     enemyCount: droptimizer?.enemyCount ?? 1,
     enemyType: droptimizer?.enemyType ?? 'FluffyPillow',
     droptimizer: nestedDroptimizer,
+    droptimizerItems,
     sendEmail: droptimizer?.sendEmail ?? false,
     bloodlust: droptimizer?.bloodlust ?? true,
     arcaneIntellect: droptimizer?.arcaneIntellect ?? true,
@@ -221,6 +226,23 @@ export async function submitRaidbotsDroptimizer({ session, droptimizer } = {}) {
     droptimizer?.armory?.name ?? droptimizer?.name ?? droptimizer?.baseActorName,
   )
   const payload = buildDroptimizerPayload(droptimizer, character)
+
+  if (!payload.character) {
+    throw new Error('Droptimizer payload is missing a character actor')
+  }
+  if (!Array.isArray(payload.droptimizerItems) || payload.droptimizerItems.length === 0) {
+    throw new Error('Droptimizer payload is missing droptimizerItems')
+  }
+
+  console.log('[raidbots droptimizer submit]', JSON.stringify({
+    actor: payload.baseActorName ?? payload.armory?.name ?? null,
+    region: payload.armory?.region ?? null,
+    realm: payload.armory?.realm ?? null,
+    itemCount: payload.droptimizerItems.length,
+    difficulty: payload.droptimizer?.difficulty ?? null,
+    instances: Array.isArray(payload.droptimizer?.instances) ? payload.droptimizer.instances : null,
+    keystoneLevel: payload.droptimizer?.keystoneLevel ?? null,
+  }))
 
   const submitRes = await fetch(`${RAIDBOTS_BASE}/sim`, {
     method: 'POST',

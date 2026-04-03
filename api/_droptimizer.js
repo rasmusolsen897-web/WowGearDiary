@@ -156,7 +156,6 @@ function stripActorSpecificFields(payload) {
     gearsets: _gearsets,
     talents: _talents,
     talentSets: _talentSets,
-    droptimizerItems: _droptimizerItems,
     ...rest
   } = payload
 
