@@ -8,6 +8,8 @@
  *   → returns raw WCL GraphQL response
  */
 
+import { applyRateLimit } from './_rateLimit.js'
+
 const WCL_OAUTH_URL = 'https://www.warcraftlogs.com/oauth/token'
 const WCL_API_URL   = 'https://www.warcraftlogs.com/api/v2/client'
 
@@ -91,6 +93,15 @@ export default async function handler(req, res) {
 
   if (!ALLOWED_QUERY_SIGNATURES.has(normalizeQuery(query))) {
     return res.status(403).json({ error: 'Query shape not allowed' })
+  }
+
+  const rateLimit = applyRateLimit(req, res, {
+    key: 'wcl',
+    limit: 30,
+    windowMs: 60 * 1000,
+  })
+  if (!rateLimit.ok) {
+    return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter })
   }
 
   try {

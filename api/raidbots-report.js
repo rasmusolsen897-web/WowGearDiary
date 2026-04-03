@@ -1,4 +1,5 @@
 import { getBlizzardToken, API_HOST } from './_blizzardAuth.js'
+import { applyRateLimit } from './_rateLimit.js'
 
 /**
  * api/raidbots-report.js — Proxy for public Raidbots report data
@@ -98,6 +99,15 @@ export default async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'id query param required' })
   if (!/^[A-Za-z0-9]{6,64}$/.test(id)) {
     return res.status(400).json({ error: 'invalid report id' })
+  }
+
+  const rateLimit = applyRateLimit(req, res, {
+    key: 'raidbots-report',
+    limit: 60,
+    windowMs: 60 * 1000,
+  })
+  if (!rateLimit.ok) {
+    return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter })
   }
 
   const baseUrl = `https://www.raidbots.com/simbot/report/${id}`
