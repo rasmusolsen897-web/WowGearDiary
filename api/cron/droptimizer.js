@@ -125,7 +125,7 @@ async function runScenarioForCharacter(supabase, { member, region, realm, scenar
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
-      const droptimizerPayload = buildScenarioPayload(scenarioKey, {
+      const droptimizerPayload = await buildScenarioPayload(scenarioKey, {
         name: member.name,
         realm,
         region,

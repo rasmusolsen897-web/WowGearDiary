@@ -30,5 +30,16 @@ create table if not exists sim_run_items (
   difficulty text
 );
 
+create table if not exists droptimizer_payloads (
+  id uuid primary key default gen_random_uuid(),
+  character_name text not null,
+  scenario text not null,
+  payload jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (character_name, scenario)
+);
+
 create index if not exists sim_runs_character_idx on sim_runs (character_name, scenario, run_date desc);
 create index if not exists sim_run_items_run_idx on sim_run_items (sim_run_id);
+create index if not exists droptimizer_payloads_lookup_idx on droptimizer_payloads (character_name, scenario);

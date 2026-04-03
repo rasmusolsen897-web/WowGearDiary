@@ -1,3 +1,5 @@
+import { getSupabase, isConfigured } from './_supabase.js'
+
 export const DROPTIMIZER_SCENARIOS = {
   raid_heroic: {
     key: 'raid_heroic',
@@ -7,6 +9,7 @@ export const DROPTIMIZER_SCENARIOS = {
     difficulty: 'raid-heroic',
     reportName: 'Droptimizer • Season 1 Raids • Heroic',
     envVar: 'RAIDBOTS_DROPTIMIZER_RAID_JSON',
+    exactPayloadCharacters: ['Whooplol'],
     defaults: {
       difficulty: 'heroic',
       raidDifficulty: 'heroic',
@@ -29,6 +32,8 @@ export const DROPTIMIZER_SCENARIOS = {
   },
 }
 
+const exactPayloadCache = new Map()
+
 function readJsonEnv(name) {
   const raw = process.env[name]
   if (!raw) return null
@@ -37,6 +42,53 @@ function readJsonEnv(name) {
     return JSON.parse(raw)
   } catch (error) {
     console.error(`[droptimizer env ${name}]`, error.message)
+    return null
+  }
+}
+
+function isExactDroptimizerPayload(payload) {
+  return !!(
+    payload
+    && payload.droptimizer
+    && typeof payload.droptimizer === 'object'
+    && payload.character
+    && Array.isArray(payload.droptimizerItems)
+  )
+}
+
+function exactPayloadCacheKey(scenarioKey, name) {
+  return `${scenarioKey}:${String(name ?? '').trim().toLowerCase()}`
+}
+
+async function readStoredExactPayload(scenarioKey, name) {
+  const cacheKey = exactPayloadCacheKey(scenarioKey, name)
+  if (exactPayloadCache.has(cacheKey)) return exactPayloadCache.get(cacheKey)
+  if (!isConfigured()) {
+    exactPayloadCache.set(cacheKey, null)
+    return null
+  }
+
+  try {
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+      .from('droptimizer_payloads')
+      .select('payload')
+      .eq('character_name', name)
+      .eq('scenario', scenarioKey)
+      .maybeSingle()
+
+    if (error) {
+      console.error(`[droptimizer payload ${scenarioKey}/${name}]`, error.message)
+      exactPayloadCache.set(cacheKey, null)
+      return null
+    }
+
+    const payload = isExactDroptimizerPayload(data?.payload) ? data.payload : null
+    exactPayloadCache.set(cacheKey, payload)
+    return payload
+  } catch (error) {
+    console.error(`[droptimizer payload ${scenarioKey}/${name}]`, error.message)
+    exactPayloadCache.set(cacheKey, null)
     return null
   }
 }
@@ -297,12 +349,23 @@ export function buildPriorityGroups(upgrades, scenarioKey) {
     })
 }
 
-export function buildScenarioPayload(scenarioKey, { name, realm, region }) {
+export async function buildScenarioPayload(scenarioKey, { name, realm, region }) {
   const scenario = DROPTIMIZER_SCENARIOS[scenarioKey]
   if (!scenario) throw new Error(`Unknown Droptimizer scenario: ${scenarioKey}`)
 
-  const envPayload = readJsonEnv(scenario.envVar) ?? {}
+  const useStoredExactPayload = Array.isArray(scenario.exactPayloadCharacters)
+    && scenario.exactPayloadCharacters.includes(name)
+  const storedPayload = useStoredExactPayload
+    ? await readStoredExactPayload(scenarioKey, name)
+    : null
+  const envPayload = storedPayload ?? readJsonEnv(scenario.envVar) ?? {}
   const hasExactDroptimizer = envPayload.droptimizer && typeof envPayload.droptimizer === 'object'
+  const hasExactPayload = isExactDroptimizerPayload(envPayload)
+
+  if (hasExactPayload) {
+    return envPayload
+  }
+
   const basePayload = hasExactDroptimizer
     ? envPayload
     : {

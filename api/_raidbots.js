@@ -117,6 +117,15 @@ export async function fetchRaidbotsCharacter(region, realm, name) {
 }
 
 function buildDroptimizerPayload(droptimizer, character) {
+  const isExactPayload = droptimizer?.type === 'droptimizer'
+    && droptimizer?.character
+    && Array.isArray(droptimizer?.droptimizerItems)
+    && droptimizer?.droptimizer
+
+  if (isExactPayload) {
+    return droptimizer
+  }
+
   const region = droptimizer?.armory?.region ?? droptimizer?.region
   const realm = droptimizer?.armory?.realm ?? droptimizer?.realm
   const name = droptimizer?.armory?.name ?? droptimizer?.name ?? droptimizer?.baseActorName
@@ -129,8 +138,16 @@ function buildDroptimizerPayload(droptimizer, character) {
   const scenarioOptions = droptimizer?.droptimizer && typeof droptimizer.droptimizer === 'object'
     ? droptimizer.droptimizer
     : {}
-  const classId = actor.class?.id ?? actor.classs?.id ?? null
-  const specId = actor.spec?.id ?? actor.talentLoadout?.spec?.id ?? null
+  const classId = scenarioOptions.classId
+    ?? actor.class?.id
+    ?? actor.classs?.id
+    ?? actor.class
+    ?? null
+  const specId = scenarioOptions.specId
+    ?? actor.spec?.id
+    ?? actor.specId
+    ?? actor.talentLoadout?.spec?.id
+    ?? null
 
   const nestedDroptimizer = {
     ...scenarioOptions,
