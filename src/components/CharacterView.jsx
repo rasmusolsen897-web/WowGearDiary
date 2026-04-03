@@ -4,6 +4,7 @@ import { useBlizzardAPI, useBlizzardMedia } from '../hooks/useBlizzardAPI.js'
 import { useCharacterParses } from '../hooks/useWCLAPI.js'
 import { useRaidbotsReport, getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
 import { useDroptimizerReport, getStoredDroptimizerUrl } from '../hooks/useDroptimizerReport.js'
+import { useSimPriorities } from '../hooks/useSimPriorities.js'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { timeAgo } from '../utils/timeAgo.js'
 import ProgressionCharts from './ProgressionCharts.jsx'
@@ -51,6 +52,113 @@ function bestParse(wclData) {
   const best = rankings.reduce((a, b) => b.rankPercent > a.rankPercent ? b : a, rankings[0])
   const diff = wclData.rankingsMythic?.rankings?.length ? 'M' : wclData.rankingsHeroic?.rankings?.length ? 'H' : 'N'
   return { pct: Math.round(best.rankPercent ?? 0), diff }
+}
+
+function AutomatedPrioritiesSection({ member }) {
+  const { data: priorities, loading, error } = useSimPriorities(member.name)
+  const [activeScenario, setActiveScenario] = useState('raid_heroic')
+  const scenarios = priorities?.scenarios ?? {}
+  const active = scenarios[activeScenario] ?? null
+
+  useEffect(() => {
+    if (scenarios[activeScenario]) return
+    const firstKey = Object.keys(scenarios).find((key) => scenarios[key])
+    if (firstKey) setActiveScenario(firstKey)
+  }, [activeScenario, scenarios])
+
+  const statusText = active?.status === 'completed'
+    ? (active.completedAt ? `Updated ${timeAgo(active.completedAt)}` : 'Completed')
+    : active?.status === 'failed'
+      ? 'Automation failed'
+      : active?.status === 'running'
+        ? 'Automation running'
+        : 'No automation result yet'
+
+  return (
+    <div style={card}>
+      <div style={automationHeaderStyle}>
+        <div>
+          <h3 style={{ ...sectionTitle, marginBottom: '0.35rem' }}>Upgrade Priorities</h3>
+          <p style={muted}>Daily stored recommendations from automated Droptimizer runs.</p>
+        </div>
+        {active && <span style={automationStatusStyle}>{statusText}</span>}
+      </div>
+
+      <div style={automationTabRowStyle}>
+        {Object.entries(scenarios).map(([key, value]) => (
+          <button
+            key={key}
+            onClick={() => setActiveScenario(key)}
+            style={key === activeScenario ? activeTabBtnStyle : tabBtnStyle}
+          >
+            {value?.label ?? key}
+          </button>
+        ))}
+      </div>
+
+      {loading && <p style={muted}>Loading automated priorities…</p>}
+      {error && <p style={{ color: '#ff4444', fontSize: '0.85rem' }}>{error}</p>}
+
+      {!loading && active && (
+        <>
+          <p style={{ ...muted, marginBottom: '0.9rem' }}>
+            {[active.difficulty, active.baseDps > 0 && `${(active.baseDps / 1000).toFixed(1)}k base DPS`, active.upgrades?.length ? `${active.upgrades.length} items` : null]
+              .filter(Boolean)
+              .join(' · ')}
+            {active.lastError && active.status === 'failed' ? ` · ${active.lastError}` : ''}
+          </p>
+
+          {active.priorities?.length > 0 && (
+            <div style={priorityGroupWrapStyle}>
+              {active.priorities.slice(0, 4).map((group) => (
+                <div key={`${group.sourceType}-${group.sourceId ?? group.sourceName}`} style={priorityGroupCardStyle}>
+                  <div style={priorityGroupTitleStyle}>{group.sourceName}</div>
+                  <div style={priorityGroupMetaStyle}>Best drop +{group.bestDrop.toLocaleString()} DPS</div>
+                  {group.topItems.map((item) => (
+                    <div key={`${item.itemId}-${item.slot}`} style={priorityItemStyle}>
+                      <span>{item.itemName}</span>
+                      <span style={{ color: 'var(--success)', fontWeight: 700 }}>+{item.dpsDelta.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {active.upgrades?.length > 0 ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="sim-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Slot</th>
+                    <th>Source</th>
+                    <th>iLvl</th>
+                    <th>+DPS</th>
+                    <th>+%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {active.upgrades.slice(0, 12).map((row) => (
+                    <tr key={`${row.itemId}-${row.slot}-${row.sourceId ?? row.sourceName}`}>
+                      <td style={{ fontWeight: 500 }}>{row.itemName ?? row.name}</td>
+                      <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{row.slot || '—'}</td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{row.sourceName ?? row.source ?? '—'}</td>
+                      <td>{row.itemLevel ?? '—'}</td>
+                      <td style={{ fontWeight: 700, color: dpsDeltaColor(row.dpsDelta), whiteSpace: 'nowrap' }}>+{row.dpsDelta.toLocaleString()}</td>
+                      <td style={{ fontWeight: 600, color: dpsDeltaColor(row.dpsDelta), whiteSpace: 'nowrap' }}>+{Number(row.dpsPct ?? 0).toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={muted}>No automated upgrade items stored for this scenario yet.</p>
+          )}
+        </>
+      )}
+    </div>
+  )
 }
 
 // ── RaidbotsSection ───────────────────────────────────────────────────────────
@@ -535,6 +643,9 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
         {gearError && gearError !== 'API not available' && <span style={{ color: '#ff4444', fontSize: '0.85rem', alignSelf: 'center' }}>{gearError}</span>}
       </div>
 
+      {/* Automated daily Droptimizer priorities */}
+      <AutomatedPrioritiesSection member={member} />
+
       {/* Raidbots Quick Sim */}
       <RaidbotsSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} writeToken={writeToken} />
 
@@ -605,6 +716,77 @@ const sectionTitle = {
 const muted = { fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }
 
 const fetchedAtStyle = { fontSize: '0.72rem', color: 'var(--text-muted)', opacity: 0.7 }
+
+const automationHeaderStyle = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+  marginBottom: '0.85rem',
+  flexWrap: 'wrap',
+}
+
+const automationStatusStyle = {
+  fontSize: '0.75rem',
+  color: 'var(--text-muted)',
+  border: '1px solid #3a3a56',
+  borderRadius: 999,
+  padding: '0.2rem 0.6rem',
+  whiteSpace: 'nowrap',
+}
+
+const automationTabRowStyle = { display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }
+
+const tabBtnStyle = {
+  background: 'transparent',
+  border: '1px solid #3a3a56',
+  color: 'var(--text-muted)',
+  borderRadius: 6,
+  padding: '0.35rem 0.8rem',
+  fontSize: '0.82rem',
+  cursor: 'pointer',
+}
+
+const activeTabBtnStyle = {
+  ...tabBtnStyle,
+  borderColor: 'var(--frost-blue)',
+  color: 'var(--frost-blue)',
+  boxShadow: '0 0 0 1px rgba(105,204,255,0.15)',
+}
+
+const priorityGroupWrapStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: '0.75rem',
+  marginBottom: '1rem',
+}
+
+const priorityGroupCardStyle = {
+  background: '#111125',
+  border: '1px solid #2b2b44',
+  borderRadius: 8,
+  padding: '0.85rem',
+}
+
+const priorityGroupTitleStyle = {
+  fontSize: '0.9rem',
+  fontWeight: 700,
+  marginBottom: '0.2rem',
+}
+
+const priorityGroupMetaStyle = {
+  fontSize: '0.75rem',
+  color: 'var(--text-muted)',
+  marginBottom: '0.6rem',
+}
+
+const priorityItemStyle = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: '0.5rem',
+  fontSize: '0.82rem',
+  paddingTop: '0.25rem',
+}
 
 const ghostBtn = {
   background: 'transparent', border: '1px solid var(--frost-blue)', color: 'var(--frost-blue)',

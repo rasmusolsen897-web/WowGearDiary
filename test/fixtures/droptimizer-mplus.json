@@ -1,0 +1,10 @@
+{
+  "items": [
+    { "itemId": 250001, "itemName": "Clasp of the Broken Path", "slot": "waist" },
+    { "itemId": 250002, "itemName": "Keystone Collector", "slot": "trinket2" }
+  ],
+  "sources": [
+    { "sourceType": "mythic_plus_dungeon", "sourceId": 210, "sourceName": "Pit of Saron" },
+    { "sourceType": "mythic_plus_dungeon", "sourceId": 211, "sourceName": "Seat of the Triumvirate" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "items": [
+    { "itemId": 249920, "itemName": "Ring of the Dreamer", "slot": "finger2" },
+    { "itemId": 249921, "itemName": "Dreambound Idol", "slot": "trinket1" }
+  ],
+  "sources": [
+    { "sourceType": "raid_boss", "sourceId": 2740, "sourceName": "Chimaerus the Undreamt God" },
+    { "sourceType": "raid_boss", "sourceId": 2741, "sourceName": "Midnight Falls" }
+  ]
+}
