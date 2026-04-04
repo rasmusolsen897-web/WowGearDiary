@@ -23,7 +23,46 @@ export default async function handler(req, res) {
 
   // ── GET — fetch snapshot history for one character ─────────────────────────
   if (req.method === 'GET') {
-    const { character } = req.query
+    const { character, view, members } = req.query
+
+    if (view === 'guild') {
+      const names = String(members ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+
+      if (!names.length) return res.status(400).json({ error: 'members param required' })
+
+      const { data, error } = await supabase
+        .from('ilvl_snapshots')
+        .select('character_name, avg_ilvl, snapped_at')
+        .in('character_name', names)
+        .order('snapped_at', { ascending: true })
+        .limit(5000)
+
+      if (error) {
+        console.error('[api/snapshots GET guild]', error.message)
+        return res.status(500).json({ error: error.message })
+      }
+
+      const byDate = new Map()
+      for (const row of data ?? []) {
+        const key = row.snapped_at
+        const entry = byDate.get(key) ?? { snapped_at: key, total: 0, count: 0 }
+        entry.total += Number(row.avg_ilvl ?? 0)
+        entry.count += 1
+        byDate.set(key, entry)
+      }
+
+      const ilvl = Array.from(byDate.values()).map((entry) => ({
+        snapped_at: entry.snapped_at,
+        avg_ilvl: Math.round((entry.total / entry.count) * 10) / 10,
+        member_count: entry.count,
+      }))
+
+      return res.status(200).json({ ilvl })
+    }
+
     if (!character) return res.status(400).json({ error: 'character param required' })
 
     const [ilvlRes, simRes] = await Promise.all([
