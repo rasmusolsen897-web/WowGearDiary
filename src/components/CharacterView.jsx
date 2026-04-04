@@ -7,6 +7,7 @@ import { useDroptimizerReport, getStoredDroptimizerUrl } from '../hooks/useDropt
 import { useSimPriorities } from '../hooks/useSimPriorities.js'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { timeAgo } from '../utils/timeAgo.js'
+import { getAverageWclParse, getBestWclParse } from '../utils/wclRankings.js'
 import ProgressionCharts from './ProgressionCharts.jsx'
 import TierProgress from './TierProgress.jsx'
 import GearSlots from './GearSlots.jsx'
@@ -41,17 +42,6 @@ function parseBadgeColor(pct) {
   if (pct >= 50) return '#1eff00'
   if (pct >= 25) return '#0070dd'
   return '#9d9d9d'
-}
-
-function bestParse(wclData) {
-  if (!wclData) return null
-  const rankings = wclData.rankingsMythic?.rankings
-    ?? wclData.rankingsHeroic?.rankings
-    ?? wclData.rankingsNormal?.rankings ?? []
-  if (!rankings.length) return null
-  const best = rankings.reduce((a, b) => b.rankPercent > a.rankPercent ? b : a, rankings[0])
-  const diff = wclData.rankingsMythic?.rankings?.length ? 'M' : wclData.rankingsHeroic?.rankings?.length ? 'H' : 'N'
-  return { pct: Math.round(best.rankPercent ?? 0), diff }
 }
 
 function AutomatedPrioritiesSection({ member }) {
@@ -456,20 +446,11 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
 function WclSection({ wclData, loading, fetchedAt }) {
   const [expanded, setExpanded] = useState(false)
 
-  const { bosses, diff, zoneName, avgPct } = useMemo(() => {
-    if (!wclData) return { bosses: [], diff: null, zoneName: null, avgPct: null }
-    let rankings = (wclData.rankingsHeroic?.rankings ?? []).filter(r => (r.totalKills ?? 0) > 0)
-    let diff = 'Heroic'
-    let zone = wclData.rankingsHeroic?.zone
-    if (!rankings.length) {
-      rankings = (wclData.rankingsNormal?.rankings ?? []).filter(r => (r.totalKills ?? 0) > 0)
-      diff = 'Normal'
-      zone = wclData.rankingsNormal?.zone
-    }
-    if (!rankings.length) return { bosses: [], diff: null, zoneName: zone?.name ?? null, avgPct: null }
-    const avg = rankings.reduce((s, r) => s + (r.rankPercent ?? 0), 0) / rankings.length
-    return { bosses: rankings, diff, zoneName: zone?.name ?? null, avgPct: Math.round(avg) }
-  }, [wclData])
+  const parseSummary = useMemo(() => getAverageWclParse(wclData), [wclData])
+  const bosses = parseSummary?.rankings ?? []
+  const diff = parseSummary?.diffLabel ?? null
+  const zoneName = parseSummary?.zoneName ?? null
+  const avgPct = parseSummary?.pct ?? null
 
   return (
     <div style={card}>
@@ -483,7 +464,7 @@ function WclSection({ wclData, loading, fetchedAt }) {
             avg {avgPct}%
           </span>
         )}
-        {!loading && !avgPct && wclData && <span style={muted}>No parse data found.</span>}
+        {!loading && avgPct === null && wclData && <span style={muted}>No parse data found.</span>}
         {!loading && bosses.length > 0 && (
           <button
             onClick={() => setExpanded(e => !e)}
@@ -585,7 +566,7 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
 
   const isMainChar = member.name.toLowerCase() === data.character.name.toLowerCase()
 
-  const parse     = bestParse(wcl)
+  const parse     = getBestWclParse(wcl)
   const classColor = CLASS_COLORS[bliz?.class ?? member.class] ?? '#e0e0e0'
   const ilvl      = bliz?.avgIlvl ?? null
   const spec      = bliz?.spec ?? ''

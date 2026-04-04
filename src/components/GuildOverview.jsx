@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useBlizzardAPI, useBlizzardMedia, useCharacterParses } from '../hooks/index.js'
 import { useRaidbotsReport, getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
 import { timeAgo } from '../utils/timeAgo.js'
+import { getAverageWclParse } from '../utils/wclRankings.js'
 
 const CLASS_COLORS = {
   'Death Knight': '#c41e3a',
@@ -33,21 +34,6 @@ function parseBadgeColor(pct) {
   if (pct >= 50) return '#1eff00'
   if (pct >= 25) return '#0070dd'
   return '#9d9d9d'
-}
-
-function avgParseFromWCL(wclData) {
-  if (!wclData) return null
-
-  let rankings = (wclData.rankingsHeroic?.rankings ?? []).filter((row) => (row.totalKills ?? 0) > 0)
-  let diff = 'H'
-  if (!rankings.length) {
-    rankings = (wclData.rankingsNormal?.rankings ?? []).filter((row) => (row.totalKills ?? 0) > 0)
-    diff = 'N'
-  }
-  if (!rankings.length) return null
-
-  const avg = rankings.reduce((sum, row) => sum + (row.rankPercent ?? 0), 0) / rankings.length
-  return { pct: Math.round(avg), diff, bossCount: rankings.length }
 }
 
 function formatDate(dateStr) {
@@ -245,7 +231,7 @@ const MemberCard = memo(function MemberCard({
     if (data && onDataLoaded) onDataLoaded(member.name, data)
   }, [data, member.name, onDataLoaded])
 
-  const parse = useMemo(() => avgParseFromWCL(wclData), [wclData])
+  const parse = useMemo(() => getAverageWclParse(wclData), [wclData])
 
   useEffect(() => {
     if (parse && onParseLoaded) onParseLoaded(member.name, parse.pct)
