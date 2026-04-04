@@ -6,7 +6,7 @@ import {
   getRetryDelayMs,
 } from '../api/_droptimizer-automation.js'
 
-test('queue ordering prefers Whooplol, then mains, then alphabetical name', () => {
+test('queue ordering prefers mains, then alphabetical name', () => {
   const runs = [
     { character_name: 'Mufuzu', is_main: true },
     { character_name: 'chenex', is_main: false },
@@ -18,7 +18,7 @@ test('queue ordering prefers Whooplol, then mains, then alphabetical name', () =
 
   assert.deepEqual(
     ordered.map((row) => row.character_name),
-    ['Whooplol', 'Hilfa', 'Mufuzu', 'chenex'],
+    ['Hilfa', 'Mufuzu', 'Whooplol', 'chenex'],
   )
 })
 

@@ -9,7 +9,6 @@ export const DROPTIMIZER_SCENARIOS = {
     difficulty: 'raid-heroic',
     reportName: 'Droptimizer • Season 1 Raids • Heroic',
     envVar: 'RAIDBOTS_DROPTIMIZER_RAID_JSON',
-    exactPayloadCharacters: ['Whooplol'],
     defaults: {
       difficulty: 'heroic',
       raidDifficulty: 'heroic',
@@ -128,7 +127,7 @@ function readJsonEnv(name) {
   }
 }
 
-function isExactDroptimizerPayload(payload) {
+export function isExactDroptimizerPayload(payload) {
   return !!(
     payload
     && payload.droptimizer
@@ -136,11 +135,6 @@ function isExactDroptimizerPayload(payload) {
     && payload.character
     && Array.isArray(payload.droptimizerItems)
   )
-}
-
-function isExactPayloadCharacter(scenario, name) {
-  return Array.isArray(scenario?.exactPayloadCharacters)
-    && scenario.exactPayloadCharacters.some((value) => normalizeCharacterName(value) === normalizeCharacterName(name))
 }
 
 function stripActorSpecificFields(payload) {
@@ -509,10 +503,7 @@ export async function buildScenarioPayload(scenarioKey, { name, realm, region })
   const scenario = DROPTIMIZER_SCENARIOS[scenarioKey]
   if (!scenario) throw new Error(`Unknown Droptimizer scenario: ${scenarioKey}`)
 
-  const exactPayloadAllowed = isExactPayloadCharacter(scenario, name)
-  const storedPayload = exactPayloadAllowed
-    ? await readStoredExactPayload(scenarioKey, name)
-    : null
+  const storedPayload = await readStoredExactPayload(scenarioKey, name)
   const envPayload = readJsonEnv(scenario.envVar) ?? {}
   if (storedPayload) {
     return storedPayload
