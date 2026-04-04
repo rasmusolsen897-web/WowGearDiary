@@ -32,6 +32,7 @@ import {
   TRIGGER_KINDS,
   updateEnrollmentValidation,
   updateRun,
+  loadRunningRuns,
 } from './_droptimizer-store.js'
 
 const GUILD_KEY = 'wow-gear-diary:guild'
@@ -568,4 +569,78 @@ export async function buildAutomationStatus(supabase, scenario) {
     rows,
     counts,
   }
+}
+
+const STALE_RUN_MS = 60 * 60 * 1000 // 1 hour
+
+export async function collectPendingRuns(supabase) {
+  const runs = await loadRunningRuns(supabase)
+  const results = []
+
+  for (const run of runs) {
+    const startedAt = run.started_at ? new Date(run.started_at).getTime() : 0
+    const isStale = startedAt > 0 && (Date.now() - startedAt) > STALE_RUN_MS
+
+    if (isStale) {
+      await finalizeScenarioFailure({
+        supabase,
+        characterName: run.character_name,
+        scenario: run.scenario,
+        error: new Error('Raidbots job timed out (stale after 1 hour)'),
+        runId: run.id,
+      })
+      results.push({
+        ok: false,
+        character: run.character_name,
+        runId: run.id,
+        action: 'stale_timeout',
+      })
+      continue
+    }
+
+    try {
+      const result = await pollScenarioSubmission({
+        supabase,
+        characterName: run.character_name,
+        scenario: run.scenario,
+        simId: run.raidbots_job_id,
+        runId: run.id,
+      })
+
+      if (result.status === RUN_STATUSES.completed) {
+        results.push({
+          ok: true,
+          character: run.character_name,
+          runId: run.id,
+          action: 'completed',
+          reportUrl: result.reportUrl,
+        })
+      } else {
+        results.push({
+          ok: true,
+          character: run.character_name,
+          runId: run.id,
+          action: 'still_running',
+          progress: result.progress ?? 0,
+        })
+      }
+    } catch (error) {
+      await finalizeScenarioFailure({
+        supabase,
+        characterName: run.character_name,
+        scenario: run.scenario,
+        error,
+        runId: run.id,
+      })
+      results.push({
+        ok: false,
+        character: run.character_name,
+        runId: run.id,
+        action: 'failed',
+        error: error.message,
+      })
+    }
+  }
+
+  return results
 }

@@ -28,11 +28,13 @@ The app is intentionally a single SPA without React Router. Navigation is condit
 
 - `api/` contains all third-party API access and server-side persistence
 - underscore-prefixed modules are shared backend helpers
-- `api/cron/droptimizer.js` owns scheduled automation work
+- `api/cron/droptimizer.js` — submit-only cron (03:00 UTC): submits sims to Raidbots, stores `simId`, exits immediately
+- `api/cron/droptimizer-collect.js` — collect cron (03:00/11:00/19:00 UTC): polls running sims, persists completed results, marks stale runs as failed
+- `api/_droptimizer-execution.js` — core orchestration: `startScenarioSubmission`, `pollScenarioSubmission`, `completeScenarioFromReport`, `collectPendingRuns`, `executeDirectScenario` (synchronous fallback for manual runs)
 
 No browser code should call Blizzard, Warcraft Logs, Raidbots, or Supabase directly with secrets.
 
-The Raidbots Droptimizer path exists in both interactive and automated forms, but it should currently be treated as unstable until the live end-to-end flow is proven reliable.
+The Raidbots Droptimizer path exists in both interactive and automated forms. The cron-based submit/collect split is code-complete but should be treated as unstable until the live Eylac end-to-end flow is proven.
 
 ### Data Ownership
 

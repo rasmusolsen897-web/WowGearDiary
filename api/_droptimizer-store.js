@@ -352,6 +352,18 @@ export async function loadLatestRunsForCharacters(supabase, scenario, characterN
   return data ?? []
 }
 
+export async function loadRunningRuns(supabase) {
+  const { data, error } = await supabase
+    .from('sim_runs')
+    .select('id, character_name, scenario, run_date, status, trigger_kind, workflow_run_id, raidbots_job_id, attempt_count, next_retry_at, started_at, completed_at, error_message, report_url, base_dps, difficulty')
+    .eq('status', 'running')
+    .not('raidbots_job_id', 'is', null)
+    .order('started_at', { ascending: true })
+
+  if (error) throw error
+  return data ?? []
+}
+
 export function latestRunByCharacter(runs = []) {
   const lookup = new Map()
 

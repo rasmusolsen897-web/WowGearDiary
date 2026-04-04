@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/droptimizer",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/droptimizer-collect",
+      "schedule": "0 3,11,19 * * *"
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { AUTOMATED_DROPTIMIZER_SCENARIO, todayDateString } from '../_droptimizer-automation.js'
-import { executeDirectScenario, listBatchCandidates } from '../_droptimizer-execution.js'
+import { listBatchCandidates, startScenarioSubmission } from '../_droptimizer-execution.js'
 import { ensureSchedulerState, TRIGGER_KINDS, updateSchedulerState } from '../_droptimizer-store.js'
 import { getSupabase, isConfigured } from '../_supabase.js'
 
@@ -49,26 +49,39 @@ export default async function handler(req, res) {
     const results = []
 
     for (const row of rows) {
-      results.push(await executeDirectScenario({
-        supabase,
-        characterName: row.character.name,
-        scenario: AUTOMATED_DROPTIMIZER_SCENARIO,
-        triggerKind: TRIGGER_KINDS.automation,
-        runDate,
-      }))
+      try {
+        const started = await startScenarioSubmission({
+          supabase,
+          characterName: row.character.name,
+          scenario: AUTOMATED_DROPTIMIZER_SCENARIO,
+          triggerKind: TRIGGER_KINDS.automation,
+          runDate,
+        })
+        results.push({
+          ok: true,
+          character: row.character.name,
+          simId: started.simId,
+          runId: started.run?.id ?? null,
+        })
+      } catch (error) {
+        results.push({
+          ok: false,
+          character: row.character.name,
+          error: error.message,
+        })
+      }
     }
 
-    const lastError = results.find((result) => result.ok === false)?.error ?? null
-    await updateSchedulerState(supabase, AUTOMATED_DROPTIMIZER_SCENARIO, {
-      active_workflow_run_id: null,
-      current_run_date: runDate,
-      last_completed_at: nowIso(),
-      last_error: lastError,
-    })
+    const firstError = results.find((r) => !r.ok)?.error ?? null
+    if (firstError) {
+      await updateSchedulerState(supabase, AUTOMATED_DROPTIMIZER_SCENARIO, {
+        last_error: firstError,
+      }).catch((e) => console.error('[cron/droptimizer scheduler]', e.message))
+    }
 
     return res.status(200).json({
       ok: true,
-      action: 'completed',
+      action: 'submitted',
       scenario: AUTOMATED_DROPTIMIZER_SCENARIO,
       runDate,
       attempted: rows.length,

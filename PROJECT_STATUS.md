@@ -1,5 +1,5 @@
 # WowGearDiary Project Status
-_Last updated: 2026-04-04_
+_Last updated: 2026-04-04 (session 2)_
 
 ## Current State
 
@@ -32,7 +32,8 @@ Vercel Serverless
   /api/droptimizer-enrollment
   /api/droptimizer-enrollment/validate
   /api/droptimizer-run
-  /api/cron/droptimizer
+  /api/cron/droptimizer          (submit-only, 03:00 UTC)
+  /api/cron/droptimizer-collect   (poll+persist, 03:00/11:00/19:00 UTC)
 
 Storage
   Vercel KV for guild metadata
@@ -45,16 +46,20 @@ Storage
 - Supabase is the main persistence layer for characters and progression history
 - Blizzard and Warcraft Logs integrations are broadly in place
 - Stage 0.5 Droptimizer groundwork is merged: enrollment, validation, manual run, queue status, and workflow scaffolding
+- Droptimizer cron split into Submit + Collect pattern to fit within Vercel function timeouts
 - The repo has a clearer contribution workflow, PR checklist, and CI baseline
 
 ## Active Gaps
 
 ### Highest priority
 
-- Raidbots Droptimizer integration is the core active problem; after 1-2 days of effort it still does not work reliably end-to-end
-- The immediate need is diagnosis and stabilization of the Droptimizer flow before additional roadmap work
-- Current live validation focus is Eylac: enroll, validate exact payload, manually run, and confirm results persist correctly
-- `RAIDBOTS_SESSION` remains a live dependency for cron-based automation validation
+- Droptimizer submit/collect cron split is code-complete but **untested live** — next step is the Eylac end-to-end test
+  - Submit cron (`/api/cron/droptimizer`) now fires-and-forgets submissions, no polling
+  - Collect cron (`/api/cron/droptimizer-collect`) runs every 8h to poll + persist completed sims
+  - Stale runs (>1h) are auto-failed to prevent infinite retries
+- `RAIDBOTS_SESSION` env var must be set in Vercel before live submit works
+- Eylac live validation sequence: enroll → trigger submit cron → confirm `sim_runs` row with `status='running'` → trigger collect cron → confirm results persisted
+- Manual runs via `POST /api/droptimizer-run` still use synchronous `executeDirectScenario` as fallback
 - Sim DPS snapshots are not yet posted automatically from the client when a new Raidbots result is saved
 
 ### Next quality improvements
@@ -81,7 +86,8 @@ Storage
 ## Known Tech Debt
 
 - `@vercel/kv` is deprecated and should eventually move to `@upstash/redis`
-- Raidbots Droptimizer remains the highest-risk integration area despite existing code and tests; current implementation confidence is low until the live flow is proven
+- Raidbots Droptimizer submit/collect split is implemented and tested locally; live confidence remains low until Eylac end-to-end is proven
+- Legacy `api/cron-droptimizer-submit.js` and `api/cron-droptimizer-poll.js` have been deleted (used old `droptimizer_jobs` table)
 - `ProgressionCharts` fetches on each character-view mount and could use light caching if traffic grows
 - Character updates currently sync the whole members array instead of a finer-grained delta
 
