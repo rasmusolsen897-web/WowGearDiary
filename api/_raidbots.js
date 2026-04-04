@@ -105,6 +105,8 @@ export function extractRaidbotsActorDetails(actor) {
     specName,
     faction,
   }
+}
+
 function resolveActorName(actor, fallback = null) {
   return actor?.name
     ?? actor?.character?.name

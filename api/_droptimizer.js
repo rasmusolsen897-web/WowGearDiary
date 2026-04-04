@@ -509,10 +509,6 @@ export async function buildScenarioPayload(scenarioKey, { name, realm, region })
     return storedPayload
   }
 
-  if (exactPayloadAllowed && isExactDroptimizerPayload(envPayload)) {
-    return envPayload
-  }
-
   const reusableExactPayload = isExactDroptimizerPayload(envPayload)
     ? envPayload
     : await readReusableExactPayload(scenarioKey, scenario)
