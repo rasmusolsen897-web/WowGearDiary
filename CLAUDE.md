@@ -65,7 +65,12 @@ WowGearDiary/
 │   ├── characters.js               ← Supabase characters CRUD (GET/POST/DELETE)
 │   ├── snapshots.js                ← Supabase iLvl + sim DPS history (GET/POST)
 │   ├── raidbots.js                 ← Raidbots quick sim proxy
-│   └── raidbots-report.js          ← Droptimizer report parser (server-side, compact response)
+│   ├── raidbots-report.js          ← Droptimizer report parser (server-side, compact response)
+│   ├── _droptimizer.js             ← Scenario payload builder + env JSON overrides + exact payload reuse
+│   ├── _droptimizer-automation.js  ← Scheduler constants, queue ordering, retry/failure classification
+│   ├── droptimizer-status.js       ← Read-only queue/scheduler status API for Settings panel
+│   └── cron/
+│       └── droptimizer.js          ← Hourly cron worker (queue seed, submit, poll, retries, manual character runs)
 ├── dist/
 │   └── index.html                  ← Built standalone (npm run build)
 └── src/
@@ -140,6 +145,31 @@ syncStatus      // 'idle' | 'syncing' | 'ok' | 'error'
 - Droptimizer shape: `{ type, characterName, spec, baseDps, difficulty, upgrades: [{ itemId, name, slot, itemLevel, dpsDelta, dpsPct, source }] }`
 - 1-hour localStorage cache for Droptimizer reports
 - Report URLs currently stored per-member in localStorage (migration to guild object planned — see TODO.md)
+
+
+### Droptimizer Automation (`api/cron/droptimizer.js` + status APIs)
+- Unified cron endpoint: `GET /api/cron/droptimizer` (scheduled hourly via `vercel.json`)
+- Uses Supabase scheduler state + lock (`droptimizer_scheduler_state`) to avoid overlap and recover stale runs
+- Daily queue seeded into `sim_runs` for scenario `raid_heroic`; prioritizes Whooplol first, then mains, then alphabetical
+- Retry policy: transient failures become `retryable` with backoff (1h, then 2h); permanent payload/HTTP failures are marked `failed`
+- Completed runs parse report upgrades and persist normalized items to `sim_run_items`; updates `characters.droptimizer_url`
+- Manual validation mode: call `/api/cron/droptimizer?character=<name>&scenario=raid_heroic` with `Authorization: Bearer <CRON_SECRET>` to run one character immediately (useful for Eylac payload validation)
+- Public queue visibility endpoint: `GET /api/droptimizer-status` drives Settings → API status panel and returns active run, next run, queue preview, and today counts
+
+### Droptimizer Payload Sources + Validation (`api/_droptimizer.js` + `api/_raidbots.js`)
+- Scenario payloads support optional JSON env overrides via either:
+  - single env var (for example `RAIDBOTS_DROPTIMIZER_RAID_JSON`), or
+  - chunked env vars (`*_PART_1`, `*_PART_2`, ...), preferred when payload JSON is large
+- Invalid JSON env values are ignored with a warning (cached to avoid log spam); defaults remain active
+- Exact payloads can be stored in Supabase `droptimizer_payloads` and reused as templates for other characters after stripping actor-specific fields (`character`, equipped/class/spec/faction ids)
+- Hard validation before submit: Droptimizer payload must include actor (`payload.character`) and `droptimizerItems[]`; missing fields throw explicit errors and are classified as permanent failures
+- Tests cover env parsing, chunked payload precedence, exact-payload sanitization, and transient vs permanent failure classification
+
+### Automation Tables (Supabase)
+- `sim_runs`: one run per character/scenario/date with status, retries, report URL, errors
+- `sim_run_items`: normalized upgrade rows linked to each run
+- `droptimizer_payloads`: stored exact JSON payloads by character/scenario
+- `droptimizer_scheduler_state`: active lock + active run pointer + last seeded run date
 
 ### Guild KV (`api/guild.js`)
 - `GET /api/guild` — returns guild JSON, no auth. Returns `null` (not error) if KV not configured.
