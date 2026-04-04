@@ -1,16 +1,22 @@
-import { useState, useCallback, useEffect, useMemo, memo } from 'react'
-import { useBlizzardAPI, useCharacterParses } from '../hooks/index.js'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { useBlizzardAPI, useBlizzardMedia, useCharacterParses } from '../hooks/index.js'
 import { useRaidbotsReport, getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
 import { timeAgo } from '../utils/timeAgo.js'
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 const CLASS_COLORS = {
-  'Death Knight':  '#c41e3a', 'Demon Hunter': '#a330c9', 'Druid':   '#ff7d0a',
-  'Evoker':        '#33937f', 'Hunter':       '#abd473', 'Mage':    '#69ccff',
-  'Monk':          '#00ff96', 'Paladin':      '#f58cba', 'Priest':  '#ffffff',
-  'Rogue':         '#fff569', 'Shaman':       '#0070de', 'Warlock': '#9482c9',
-  'Warrior':       '#c79c6e',
+  'Death Knight': '#c41e3a',
+  'Demon Hunter': '#a330c9',
+  Druid: '#ff7d0a',
+  Evoker: '#33937f',
+  Hunter: '#abd473',
+  Mage: '#69ccff',
+  Monk: '#00ff96',
+  Paladin: '#f58cba',
+  Priest: '#ffffff',
+  Rogue: '#fff569',
+  Shaman: '#0070de',
+  Warlock: '#9482c9',
+  Warrior: '#c79c6e',
 }
 
 function ilvlColor(ilvl) {
@@ -31,61 +37,210 @@ function parseBadgeColor(pct) {
 
 function avgParseFromWCL(wclData) {
   if (!wclData) return null
-  // Prefer heroic, fall back to normal — only count bosses with at least one kill
-  let rankings = (wclData.rankingsHeroic?.rankings ?? []).filter(r => (r.totalKills ?? 0) > 0)
+
+  let rankings = (wclData.rankingsHeroic?.rankings ?? []).filter((row) => (row.totalKills ?? 0) > 0)
   let diff = 'H'
   if (!rankings.length) {
-    rankings = (wclData.rankingsNormal?.rankings ?? []).filter(r => (r.totalKills ?? 0) > 0)
+    rankings = (wclData.rankingsNormal?.rankings ?? []).filter((row) => (row.totalKills ?? 0) > 0)
     diff = 'N'
   }
   if (!rankings.length) return null
-  const avg = rankings.reduce((s, r) => s + (r.rankPercent ?? 0), 0) / rankings.length
+
+  const avg = rankings.reduce((sum, row) => sum + (row.rankPercent ?? 0), 0) / rankings.length
   return { pct: Math.round(avg), diff, bossCount: rankings.length }
 }
 
-// ── Guild Summary Bar ─────────────────────────────────────────────────────────
+function formatDate(dateStr) {
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })
+}
+
+function initials(name = '') {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('')
+}
 
 function GuildSummaryBar({ memberData }) {
   const values = Object.values(memberData)
   if (!values.length) return null
 
-  const ilvls      = values.map(d => d.avgIlvl).filter(Boolean)
-  const avgIlvl    = ilvls.length ? Math.round(ilvls.reduce((s, v) => s + v, 0) / ilvls.length) : null
-  const count4pc   = values.filter(d => (d.tierCount ?? 0) >= 4).length
-  const count2pc   = values.filter(d => (d.tierCount ?? 0) >= 2 && (d.tierCount ?? 0) < 4).length
-  const countCraft = values.filter(d => d.hasCraftedWeapon).length
+  const ilvls = values.map((value) => value.avgIlvl).filter(Boolean)
+  const avgIlvl = ilvls.length ? Math.round((ilvls.reduce((sum, value) => sum + value, 0) / ilvls.length) * 10) / 10 : null
+  const count4pc = values.filter((value) => (value.tierCount ?? 0) >= 4).length
+  const count2pc = values.filter((value) => (value.tierCount ?? 0) >= 2 && (value.tierCount ?? 0) < 4).length
+  const countCraft = values.filter((value) => value.hasCraftedWeapon).length
 
   return (
-    <div style={summaryBarStyle}>
-      {avgIlvl && (
-        <span className="stat-pill stat-pill-ilvl">⚔ {avgIlvl} avg iLvl</span>
-      )}
-      {count4pc > 0 && (
-        <span className="stat-pill stat-pill-4pc">✦ {count4pc}× 4pc</span>
-      )}
-      {count2pc > 0 && (
-        <span className="stat-pill stat-pill-2pc">◈ {count2pc}× 2pc</span>
-      )}
-      {countCraft > 0 && (
-        <span className="stat-pill stat-pill-weapon">⚒ {countCraft}× crafted wep</span>
-      )}
+    <div className="guild-summary-bar">
+      {avgIlvl && <span className="stat-pill stat-pill-ilvl">{avgIlvl} avg iLvl</span>}
+      {count4pc > 0 && <span className="stat-pill stat-pill-4pc">{count4pc} x 4pc</span>}
+      {count2pc > 0 && <span className="stat-pill stat-pill-2pc">{count2pc} x 2pc</span>}
+      {countCraft > 0 && <span className="stat-pill stat-pill-weapon">{countCraft} crafted weapon</span>}
     </div>
   )
 }
 
-// ── MemberCard (memoized) ────────────────────────────────────────────────────
+function GuildTrendChart({ points }) {
+  if (points.length < 2) return null
 
-const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMember, onDataLoaded, onParseLoaded, onDpsLoaded }) {
+  const width = 900
+  const height = 250
+  const left = 48
+  const right = 18
+  const top = 18
+  const bottom = 38
+  const values = points.map((point) => point.y)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+
+  const toX = (index) => left + (index / (points.length - 1)) * (width - left - right)
+  const toY = (value) => height - bottom - ((value - min) / range) * (height - top - bottom)
+
+  const line = points.map((point, index) => `${toX(index).toFixed(1)},${toY(point.y).toFixed(1)}`).join(' ')
+  const area = `M ${toX(0).toFixed(1)} ${height - bottom} L ${line} L ${toX(points.length - 1).toFixed(1)} ${height - bottom} Z`
+  const midIndex = Math.floor(points.length / 2)
+  const xTicks = [0, midIndex, points.length - 1]
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="guild-trend-chart" aria-label="Guild item level trend">
+      <defs>
+        <linearGradient id="guildTrendFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="rgba(105, 204, 255, 0.35)" />
+          <stop offset="100%" stopColor="rgba(105, 204, 255, 0.02)" />
+        </linearGradient>
+      </defs>
+
+      {[min, min + range / 2, max].map((tick, index) => {
+        const y = toY(tick)
+        return (
+          <g key={index}>
+            <line x1={left} y1={y} x2={width - right} y2={y} stroke="rgba(122, 139, 160, 0.18)" strokeDasharray="4 6" />
+            <text x={8} y={y + 4} fill="var(--text-muted)" fontSize="11">{tick.toFixed(1)}</text>
+          </g>
+        )
+      })}
+
+      <path d={area} fill="url(#guildTrendFill)" />
+      <polyline
+        points={line}
+        fill="none"
+        stroke="var(--frost-blue)"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {points.map((point, index) => (
+        <circle key={point.label} cx={toX(index)} cy={toY(point.y)} r="4" fill="var(--frost-blue)">
+          <title>{`${point.label}: ${point.y} avg iLvl across ${point.memberCount} mains`}</title>
+        </circle>
+      ))}
+
+      {xTicks.map((index) => (
+        <text
+          key={index}
+          x={toX(index)}
+          y={height - 12}
+          fill="var(--text-muted)"
+          fontSize="11"
+          textAnchor={index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'}
+        >
+          {points[index].label}
+        </text>
+      ))}
+    </svg>
+  )
+}
+
+function GuildIlvlTrend({ guild }) {
+  const [points, setPoints] = useState([])
+  const [loading, setLoading] = useState(true)
+  const mains = useMemo(
+    () => (guild?.members ?? []).filter((member) => member.isMain !== false).map((member) => member.name.trim()).filter(Boolean),
+    [guild],
+  )
+
+  useEffect(() => {
+    if (!mains.length) {
+      setPoints([])
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+
+    fetch(`/api/snapshots?view=guild&members=${encodeURIComponent(mains.join(','))}`)
+      .then((res) => (res.ok ? res.json() : { ilvl: [] }))
+      .then((payload) => {
+        if (cancelled) return
+        const next = (payload.ilvl ?? []).map((row) => ({
+          y: Math.round((row.avg_ilvl ?? 0) * 10) / 10,
+          label: formatDate(row.snapped_at),
+          memberCount: row.member_count ?? 0,
+        }))
+        setPoints(next)
+      })
+      .catch(() => {
+        if (!cancelled) setPoints([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [mains])
+
+  return (
+    <section className="guild-overview-panel guild-overview-panel--trend">
+      <div className="guild-panel-heading">
+        <div>
+          <h2 className="guild-panel-title">Guild Item Level Trend</h2>
+          <p className="guild-panel-subtitle">Daily average across mains only, built from recorded Blizzard snapshots.</p>
+        </div>
+        {!loading && points.length > 0 && (
+          <span className="guild-trend-badge">
+            {points[points.length - 1].y} avg
+          </span>
+        )}
+      </div>
+
+      {loading && <p className="guild-panel-empty">Loading guild progression…</p>}
+      {!loading && points.length >= 2 && <GuildTrendChart points={points} />}
+      {!loading && points.length === 1 && (
+        <p className="guild-panel-empty">Need one more snapshot day before the guild trend can be drawn.</p>
+      )}
+      {!loading && points.length === 0 && (
+        <p className="guild-panel-empty">No guild progression history yet. Front-page visits will start building this automatically.</p>
+      )}
+    </section>
+  )
+}
+
+const MemberCard = memo(function MemberCard({
+  member,
+  region,
+  realm,
+  onSelectMember,
+  onDataLoaded,
+  onParseLoaded,
+  onDpsLoaded,
+}) {
   const effectiveRealm = member.realm?.trim() || realm
-  const memberKey      = `${region}:${effectiveRealm}:${member.name}`.toLowerCase()
-
-  const { data, loading: gearLoading, error: gearError, refresh, fetchedAt: blizFetchedAt } = useBlizzardAPI(member.name, effectiveRealm, region)
+  const memberKey = `${region}:${effectiveRealm}:${member.name}`.toLowerCase()
+  const { data, loading: gearLoading, error: gearError, refresh, fetchedAt } = useBlizzardAPI(member.name, effectiveRealm, region)
+  const { avatarUrl } = useBlizzardMedia(member.name, effectiveRealm, region)
   const { data: wclData, loading: wclLoading, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
-  const refreshAll = useCallback((e) => { e.stopPropagation(); refresh(); refreshWCL() }, [refresh, refreshWCL])
   const reportUrl = member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey)
   const { dps } = useRaidbotsReport(reportUrl)
 
-  // Fix 1: Lift data up via useEffect (not during render)
   useEffect(() => {
     if (data && onDataLoaded) onDataLoaded(member.name, data)
   }, [data, member.name, onDataLoaded])
@@ -94,254 +249,218 @@ const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMem
 
   useEffect(() => {
     if (parse && onParseLoaded) onParseLoaded(member.name, parse.pct)
-  }, [parse, member.name, onParseLoaded])
+  }, [member.name, onParseLoaded, parse])
 
   useEffect(() => {
     if (dps > 0 && onDpsLoaded) onDpsLoaded(member.name, dps)
   }, [dps, member.name, onDpsLoaded])
 
-  const classColor = CLASS_COLORS[data?.class ?? member.class] ?? '#e0e0e0'
+  const classColor = CLASS_COLORS[data?.class ?? member.class] ?? '#d6deea'
   const ilvl = data?.avgIlvl ?? null
-
-  // Fix 3: Stable onSelect — call onSelectMember with member from inside the card
-  const handleClick = useCallback(() => { onSelectMember?.(member) }, [onSelectMember, member])
+  const handleClick = useCallback(() => onSelectMember?.(member), [member, onSelectMember])
+  const handleKeyDown = useCallback((event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onSelectMember?.(member)
+    }
+  }, [member, onSelectMember])
+  const refreshAll = useCallback((event) => {
+    event.stopPropagation()
+    refresh()
+    refreshWCL()
+  }, [refresh, refreshWCL])
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      className="guild-member-card"
       onClick={handleClick}
-      style={memberCardStyle}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = classColor; e.currentTarget.style.boxShadow = `0 0 12px ${classColor}33` }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a3e'; e.currentTarget.style.boxShadow = 'none' }}
+      onKeyDown={handleKeyDown}
+      style={{ '--member-accent': classColor }}
     >
-      {/* Name + class */}
-      <div>
-        <div style={nameRowStyle}>
-          <div>
-            <span style={{ fontWeight: 700, fontSize: '1rem', color: classColor }}>{member.name}</span>
-          </div>
-          {!member.isMain && (
-            <span style={altBadgeStyle}>alt</span>
+      <div className="guild-member-card__top">
+        <div className="guild-member-card__avatar">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={member.name} className="guild-member-card__avatar-image" />
+          ) : (
+            <span className="guild-member-card__avatar-fallback">{initials(member.name)}</span>
           )}
         </div>
-        <div style={specLineStyle}>
-          {[data?.spec ?? member.spec, data?.class ?? member.class].filter(Boolean).join(' ') || '—'} · {member.role}
+
+        <div className="guild-member-card__identity">
+          <div className="guild-member-card__name-row">
+            <span className="guild-member-card__name">{member.name}</span>
+            {!member.isMain && <span className="guild-member-card__alt">alt</span>}
+          </div>
+          <div className="guild-member-card__meta">
+            {[data?.spec ?? member.spec, data?.class ?? member.class].filter(Boolean).join(' ') || 'Unknown class'}
+          </div>
+          <div className="guild-member-card__meta guild-member-card__meta--secondary">
+            {member.role} · {effectiveRealm || realm}
+          </div>
+        </div>
+
+        <div className="guild-member-card__ilvl">
+          {ilvl !== null ? (
+            <>
+              <span className="guild-member-card__ilvl-value" style={{ color: ilvlColor(ilvl) }}>{ilvl}</span>
+              <span className="guild-member-card__ilvl-label">avg iLvl</span>
+            </>
+          ) : (
+            <span className="guild-member-card__loading">{gearLoading ? 'Loading…' : 'No gear yet'}</span>
+          )}
         </div>
       </div>
 
-      {/* iLvl */}
-      <div style={ilvlRowStyle}>
-        {gearLoading && !data && <span style={loadingTextStyle}>Loading gear…</span>}
-        {gearError && gearError !== 'API not available' && (
-          <span style={errorTextStyle}>{gearError}</span>
-        )}
-        {gearError === 'API not available' && (
-          <span style={mutedSmallStyle}>API offline</span>
-        )}
-        {ilvl !== null && (
-          <>
-            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: ilvlColor(ilvl), lineHeight: 1 }}>{ilvl}</span>
-            <span style={mutedSmallStyle}>avg iLvl</span>
-            {blizFetchedAt && <span style={cardFetchedAtStyle}>{timeAgo(blizFetchedAt)}</span>}
-            <button onClick={refreshAll} disabled={gearLoading || wclLoading} style={refreshIconBtn} title="Refresh">
-              {gearLoading || wclLoading ? '…' : '↻'}
-            </button>
-          </>
-        )}
-        {!data && !gearLoading && !gearError && (
-          <button onClick={(e) => { e.stopPropagation(); refresh() }} style={ghostBtn}>Load data →</button>
-        )}
-      </div>
-
-      {/* Tier / crafted weapon badges */}
-      {data && (
-        <div style={badgeRowStyle}>
-          {(data.tierCount ?? 0) >= 4 && <span className="badge badge-4pc">4pc ✦</span>}
-          {(data.tierCount ?? 0) >= 2 && (data.tierCount ?? 0) < 4 && <span className="badge badge-2pc">2pc</span>}
-          {data.hasCraftedWeapon && <span className="badge badge-crafted">⚒ {data.craftedWeaponIlvl}</span>}
+      <div className="guild-member-card__body">
+        <div className="guild-member-card__badges">
+          {parse && (
+            <span className="guild-member-card__parse" style={{ color: parseBadgeColor(parse.pct), borderColor: parseBadgeColor(parse.pct) }}>
+              {parse.pct}% {parse.diff}
+            </span>
+          )}
+          {dps > 0 && <span className="badge badge-crafted">{(dps / 1000).toFixed(1)}k DPS</span>}
+          {(data?.tierCount ?? 0) >= 4 && <span className="badge badge-4pc">4pc</span>}
+          {(data?.tierCount ?? 0) >= 2 && (data?.tierCount ?? 0) < 4 && <span className="badge badge-2pc">2pc</span>}
+          {data?.hasCraftedWeapon && <span className="badge badge-crafted">{data.craftedWeaponIlvl} crafted</span>}
         </div>
-      )}
 
-      {/* WCL parse */}
-      <div style={parseRowStyle}>
-        {wclLoading && <span style={fetchingTextStyle}>Fetching parses…</span>}
-        {parse && (
-          <span style={{
-            fontSize: '1rem', fontWeight: 700,
-            color: parseBadgeColor(parse.pct),
-            border: `1px solid ${parseBadgeColor(parse.pct)}`,
-            borderRadius: '4px', padding: '0.2rem 0.6rem',
-          }}>
-            {parse.pct}% {parse.diff}
-          </span>
-        )}
-        {!wclLoading && !parse && data && (
-          <span style={fetchingTextStyle}>No WCL data</span>
-        )}
-        {dps > 0 && (
-          <span style={dpsLabelStyle}>
-            {(dps / 1000).toFixed(1)}k DPS
-          </span>
-        )}
+        <div className="guild-member-card__footer">
+          <div className="guild-member-card__status">
+            {gearError && gearError !== 'API not available' && <span className="guild-member-card__error">{gearError}</span>}
+            {gearError === 'API not available' && <span className="guild-member-card__muted">API offline</span>}
+            {!gearError && fetchedAt && <span className="guild-member-card__muted">Updated {timeAgo(fetchedAt)}</span>}
+            {!gearError && !fetchedAt && !gearLoading && <span className="guild-member-card__muted">Ready to inspect</span>}
+          </div>
+
+          <button
+            type="button"
+            className="guild-member-card__refresh"
+            onClick={refreshAll}
+            disabled={gearLoading || wclLoading}
+          >
+            {gearLoading || wclLoading ? '…' : 'Refresh'}
+          </button>
+        </div>
       </div>
-
-      {/* Chevron */}
-      <span style={chevronStyle}>→</span>
     </div>
   )
 })
 
-// ── GuildOverview ─────────────────────────────────────────────────────────────
-
 export default function GuildOverview({ guild, onSelectMember }) {
-  const [showAlts, setShowAlts]   = useState(false)
+  const [showAlts, setShowAlts] = useState(false)
   const [roleFilter, setRoleFilter] = useState('all')
-  const [sortBy, setSortBy]       = useState('ilvl')
+  const [sortBy, setSortBy] = useState('ilvl')
   const [memberData, setMemberData] = useState({})
   const [parseCache, setParseCache] = useState({})
-  const [dpsCache, setDpsCache]     = useState({})
+  const [dpsCache, setDpsCache] = useState({})
 
-  const onDataLoaded  = useCallback((name, data)  => setMemberData(prev => prev[name] === data ? prev : { ...prev, [name]: data }),  [])
-  const onParseLoaded = useCallback((name, pct)   => setParseCache(prev => prev[name] === pct ? prev : { ...prev, [name]: pct }),   [])
-  const onDpsLoaded   = useCallback((name, dps)   => setDpsCache(prev => prev[name] === dps ? prev : { ...prev, [name]: dps }),     [])
+  const onDataLoaded = useCallback((name, data) => {
+    setMemberData((prev) => (prev[name] === data ? prev : { ...prev, [name]: data }))
+  }, [])
+  const onParseLoaded = useCallback((name, pct) => {
+    setParseCache((prev) => (prev[name] === pct ? prev : { ...prev, [name]: pct }))
+  }, [])
+  const onDpsLoaded = useCallback((name, dps) => {
+    setDpsCache((prev) => (prev[name] === dps ? prev : { ...prev, [name]: dps }))
+  }, [])
+
+  const displayed = useMemo(() => {
+    if (!guild?.members?.length) return []
+
+    return [...guild.members]
+      .filter((member) => showAlts || member.isMain !== false)
+      .filter((member) => roleFilter === 'all' || member.role === roleFilter)
+      .sort((a, b) => {
+        if (sortBy === 'ilvl') return (memberData[b.name]?.avgIlvl ?? 0) - (memberData[a.name]?.avgIlvl ?? 0)
+        if (sortBy === 'parse') return (parseCache[b.name] ?? 0) - (parseCache[a.name] ?? 0)
+        if (sortBy === 'dps') return (dpsCache[b.name] ?? 0) - (dpsCache[a.name] ?? 0)
+        return a.name.localeCompare(b.name)
+      })
+  }, [dpsCache, guild?.members, memberData, parseCache, roleFilter, showAlts, sortBy])
 
   if (!guild?.members?.length) {
     return (
-      <section style={containerStyle}>
-        <h2 style={headingStyle}>Guild Overview</h2>
-        <p style={emptyMsgStyle}>
-          No members configured. Open Settings to add guild members.
-        </p>
+      <section className="guild-overview-panel">
+        <h2 className="guild-panel-title">Guild Overview</h2>
+        <p className="guild-panel-empty">No members configured. Open Settings to add guild members.</p>
       </section>
     )
   }
 
-  const displayed = guild.members
-    .filter(m => showAlts || m.isMain !== false)
-    .filter(m => roleFilter === 'all' || m.role === roleFilter)
-    .sort((a, b) => {
-      if (sortBy === 'ilvl')  return (memberData[b.name]?.avgIlvl ?? 0) - (memberData[a.name]?.avgIlvl ?? 0)
-      if (sortBy === 'parse') return (parseCache[b.name] ?? 0) - (parseCache[a.name] ?? 0)
-      if (sortBy === 'dps')   return (dpsCache[b.name] ?? 0)  - (dpsCache[a.name] ?? 0)
-      return 0
-    })
-
   return (
-    <section style={containerStyle}>
-      {/* Heading row */}
-      <div style={headingRowStyle}>
-        <h2 style={{ ...headingStyle, marginBottom: 0 }}>
-          {guild.name ? `${guild.name} ` : ''}Guild Overview
-          <span style={headingSubStyle}>
-            {guild.realm} · {guild.region.toUpperCase()}
-          </span>
-        </h2>
-      </div>
+    <div className="guild-overview-layout">
+      <GuildIlvlTrend guild={guild} />
 
-      {/* Summary bar */}
-      <GuildSummaryBar memberData={memberData} />
+      <section className="guild-overview-panel">
+        <div className="guild-panel-heading">
+          <div>
+            <h2 className="guild-panel-title">Roster Overview</h2>
+            <p className="guild-panel-subtitle">A sharper front page for quick roster checks before diving into a character.</p>
+          </div>
+        </div>
 
-      {/* Sort / filter bar */}
-      <div className="filter-bar" style={filterBarMargin}>
-        {/* Role pills */}
-        <div style={filterGroupStyle}>
-          {[['all', 'All'], ['tank', 'Tank'], ['healer', 'Healer'], ['dps', 'DPS']].map(([key, label]) => (
-            <button
-              key={key}
-              className={`btn-pill${roleFilter === key ? ' active' : ''}`}
-              onClick={() => setRoleFilter(key)}
-            >{label}</button>
+        <GuildSummaryBar memberData={memberData} />
+
+        <div className="filter-bar guild-filter-bar">
+          <div className="filter-group">
+            {[
+              ['all', 'All'],
+              ['tank', 'Tank'],
+              ['healer', 'Healer'],
+              ['dps', 'DPS'],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                className={`btn-pill${roleFilter === key ? ' active' : ''}`}
+                onClick={() => setRoleFilter(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="filter-group">
+            <span className="guild-filter-label">Sort</span>
+            <select
+              className="filter-select"
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+            >
+              <option value="ilvl">iLvl</option>
+              <option value="parse">Parse %</option>
+              <option value="dps">Sim DPS</option>
+              <option value="name">Name</option>
+            </select>
+          </div>
+
+          <button
+            className={`btn-pill${showAlts ? ' active' : ''}`}
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setShowAlts((value) => !value)}
+          >
+            {showAlts ? 'Hide alts' : 'Show alts'}
+          </button>
+        </div>
+
+        <div className="guild-member-grid">
+          {displayed.map((member) => (
+            <MemberCard
+              key={member.name}
+              member={member}
+              region={guild.region}
+              realm={guild.realm}
+              onSelectMember={onSelectMember}
+              onDataLoaded={onDataLoaded}
+              onParseLoaded={onParseLoaded}
+              onDpsLoaded={onDpsLoaded}
+            />
           ))}
         </div>
 
-        {/* Sort dropdown */}
-        <div style={filterGroupStyle}>
-          <span style={sortLabelStyle}>Sort</span>
-          <select
-            className="filter-select"
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-          >
-            <option value="ilvl">iLvl</option>
-            <option value="parse">Parse %</option>
-            <option value="dps">Sim DPS</option>
-          </select>
-        </div>
-
-        {/* Alts toggle — pushed to right */}
-        <button
-          className={`btn-pill${showAlts ? ' active' : ''}`}
-          style={{ marginLeft: 'auto' }}
-          onClick={() => setShowAlts(v => !v)}
-        >
-          {showAlts ? 'Hide alts' : 'Show alts'}
-        </button>
-      </div>
-
-      {/* Cards */}
-      <div style={cardsContainerStyle}>
-        {displayed.map(m => (
-          <MemberCard
-            key={m.name}
-            member={m}
-            region={guild.region}
-            realm={guild.realm}
-            onSelectMember={onSelectMember}
-            onDataLoaded={onDataLoaded}
-            onParseLoaded={onParseLoaded}
-            onDpsLoaded={onDpsLoaded}
-          />
-        ))}
-        {displayed.length === 0 && (
-          <p style={emptyMsgStyle}>No members match this filter.</p>
-        )}
-      </div>
-    </section>
+        {displayed.length === 0 && <p className="guild-panel-empty">No members match this filter.</p>}
+      </section>
+    </div>
   )
 }
-
-// ── Styles (module-level constants — no re-creation per render) ──────────────
-
-const ghostBtn = {
-  background: 'transparent', border: '1px solid var(--frost-blue)', color: 'var(--frost-blue)',
-  borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer',
-}
-
-const containerStyle = {
-  background: 'var(--card)', borderRadius: '10px', padding: '1.25rem',
-  border: '1px solid #2a2a3e', marginBottom: '1.5rem',
-}
-
-const headingStyle = {
-  fontSize: '1rem', fontWeight: 700, color: 'var(--frost-blue)',
-  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', marginTop: 0,
-}
-
-const memberCardStyle = {
-  background: 'var(--card)', borderRadius: '8px', padding: '1rem',
-  border: '1px solid #2a2a3e', display: 'flex', flexDirection: 'column', gap: '0.55rem',
-  minWidth: '220px', flex: '1 1 220px', cursor: 'pointer',
-  transition: 'border-color 0.15s, box-shadow 0.15s', position: 'relative',
-}
-
-const summaryBarStyle = { display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }
-const headingRowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }
-const headingSubStyle = { fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.5rem' }
-const filterBarMargin = { marginBottom: '1rem' }
-const filterGroupStyle = { display: 'flex', alignItems: 'center', gap: '4px' }
-const sortLabelStyle  = { fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }
-const cardsContainerStyle = { display: 'flex', flexWrap: 'wrap', gap: '1rem' }
-const emptyMsgStyle   = { color: 'var(--text-muted)', fontSize: '0.9rem' }
-const nameRowStyle    = { display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
-const altBadgeStyle   = { fontSize: '0.7rem', color: 'var(--text-muted)', border: '1px solid #444', borderRadius: '3px', padding: '0.1rem 0.4rem' }
-const specLineStyle   = { fontSize: '0.8rem', color: 'var(--text-muted)' }
-const ilvlRowStyle    = { display: 'flex', alignItems: 'baseline', gap: '0.5rem' }
-const loadingTextStyle = { color: 'var(--text-muted)', fontSize: '0.85rem' }
-const errorTextStyle  = { color: '#ff4444', fontSize: '0.8rem' }
-const mutedSmallStyle = { color: 'var(--text-muted)', fontSize: '0.8rem' }
-const badgeRowStyle   = { display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }
-const parseRowStyle   = { display: 'flex', alignItems: 'center', gap: '0.5rem' }
-const fetchingTextStyle = { fontSize: '0.75rem', color: 'var(--text-muted)' }
-const dpsLabelStyle   = { fontSize: '0.85rem', fontWeight: 600, color: '#a335ee' }
-const chevronStyle      = { position: 'absolute', bottom: '0.7rem', right: '0.9rem', fontSize: '0.85rem', color: 'var(--text-muted)', pointerEvents: 'none' }
-const cardFetchedAtStyle = { fontSize: '0.68rem', color: 'var(--text-muted)', opacity: 0.6, marginLeft: 'auto' }
-const refreshIconBtn    = { background: 'transparent', border: 'none', color: 'var(--frost-blue)', cursor: 'pointer', fontSize: '0.85rem', padding: '0 2px', lineHeight: 1, opacity: 0.7 }
