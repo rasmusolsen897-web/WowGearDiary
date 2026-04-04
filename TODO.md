@@ -3,29 +3,39 @@
 ## Shipped
 
 - Guild overview: member cards with live Blizzard gear, WCL parses, and Raidbots DPS
-- Cloud guild roster via Vercel KV (Upstash Redis) with password-gated writes
-- Settings drawer: Guild / Characters / API tabs; Cloud Sync unlock with shared password
-- Character detail view: Droptimizer upgrade table, Raidbots quick sim, WCL per-boss parse table, gear list
-- WCL: avg parse across all bosses (auto-zone, no hardcoded zone ID), expandable per-boss breakdown
+- Cloud guild roster via Vercel KV with password-gated writes
+- Settings drawer: Guild / Characters / API tabs; Cloud Sync + Droptimizer queue status panel
+- Character detail view: Droptimizer upgrade table, Raidbots quick sim, WCL per-boss parse, gear list
+- WCL: avg parse (auto-zone), expandable per-boss breakdown
 - Blizzard API: live iLvl, spec/class auto-learn, tier count badges, crafted weapon detection
-- Droptimizer: server-side parse (compact 16KB response vs 500KB raw), sortable upgrade table
-- Performance: React.memo, useEffect for side effects, in-memory server token cache, useMemo
-- All 4 originally planned modules: useStorage, UpgradeCharts, WeeklyTracker, CatalystPlanner
+- Droptimizer: server-side parse (16KB vs 500KB raw), sortable upgrade table
+- Report URLs synced into guild state (shared across devices via Supabase)
+- Droptimizer automation pipeline: hourly cron, queue, submit, poll, retry, store results in Supabase
+- Droptimizer queue status panel in Settings
+- Enrollment API + payload validation endpoint
+- Manual run trigger endpoint
 
 ---
 
-## Up Next — Robustify persistence & transparency
+## Active: Eylac Droptimizer Flow Validation
 
-The core gap: Raidbots and Droptimizer report URLs live in each browser's localStorage. A guildie on a different device sees nothing when someone else pastes a report. These need to be part of the synced guild state.
+- [ ] Set RAIDBOTS_SESSION in Vercel dashboard
+- [ ] Enroll Eylac and supply validated exact payload
+- [ ] Confirm end-to-end: run completes, sim_run_items populated, droptimizer_url updated
+- [ ] Validate DroptimizerSection in UI shows Eylac's results correctly
 
-- [ ] **Sync report URLs into guild data** — move `member.reportUrl` and `member.droptimizerUrl` out of localStorage (`raidbots-url:*`, `droptimizer-url:*`) and into each member object in the guild roster. Syncs via KV automatically. One person pastes a Droptimizer link, everyone sees the upgrades.
-- [ ] **Last-fetched timestamps** — store `fetchedAt` alongside cached Blizzard/WCL data. Show "fetched 3 min ago" on CharacterView hero and MemberCard; "Report from Jan 15" near Raidbots/Droptimizer sections.
-- [ ] **Refresh controls** — "↺ Refresh" button on MemberCard and CharacterView hero to force-bust the Blizzard + WCL cache for that character. Currently requires waiting 15–30 min or manually clearing localStorage.
-- [ ] **WCL cache invalidation on reset** — auto-bust WCL localStorage cache on EU Tuesday 09:00 UTC so parses show the new week's data without manual intervention.
+---
+
+## Up Next — Polish & Wire Remaining Plumbing
+
+- [ ] **Sim DPS snapshot auto-post** — wire RaidbotsSection to POST /api/snapshots?type=sim when sim URL is saved and DPS loads (needs writeToken passed down from App)
+- [ ] **Last-fetched timestamps** — show "fetched 3 min ago" on CharacterView and MemberCard; "Report from Apr 4" near Raidbots/Droptimizer sections
+- [ ] **Refresh controls** — force-bust Blizzard + WCL cache per character without clearing all localStorage
+- [ ] **WCL cache auto-invalidation** — bust on EU Tuesday 09:00 UTC so new week parses show immediately
 
 ---
 
 ## Backlog
 
-- [ ] **Discord webhook** — post a weekly summary (avg parses, new loot, vault slots) to a guild Discord channel
-- [ ] **Attendance tracking** — log which members attended each raid night; track attendance % per member over time
+- [ ] **Discord webhook** — weekly summary (avg parses, new loot, vault slots) to guild Discord
+- [ ] **Attendance tracking** — log raid attendance per member, track % over time

@@ -1,4 +1,4 @@
-# WoW Guild Planner — Codex Context
+# WoW Guild Planner — Claude Context
 
 ## Project Summary
 A React + Vite guild management and character analysis platform for a small friend group. Members open the shared Vercel URL and see live gear, parse, and sim data for everyone in the guild. Guild roster is stored in Vercel KV (Upstash Redis) so all visitors see the same data. Writes are password-gated — guildies unlock once in Settings and their edits sync instantly.
@@ -50,7 +50,7 @@ SUPABASE_SERVICE_ROLE_KEY Supabase service role / secret key (server-side only, 
 ## Project Structure
 ```
 WowGearDiary/
-├── AGENTS.md
+├── CLAUDE.md
 ├── TODO.md
 ├── index.html                      ← Vite entry
 ├── package.json
@@ -65,7 +65,12 @@ WowGearDiary/
 │   ├── characters.js               ← Supabase characters CRUD (GET/POST/DELETE)
 │   ├── snapshots.js                ← Supabase iLvl + sim DPS history (GET/POST)
 │   ├── raidbots.js                 ← Raidbots quick sim proxy
-│   └── raidbots-report.js          ← Droptimizer report parser (server-side, compact response)
+│   ├── raidbots-report.js          ← Droptimizer report parser (server-side, compact response)
+│   ├── _droptimizer.js             ← Scenario payload builder + env JSON overrides + exact payload reuse
+│   ├── _droptimizer-automation.js  ← Scheduler constants, queue ordering, retry/failure classification
+│   ├── droptimizer-status.js       ← Read-only queue/scheduler status API for Settings panel
+│   └── cron/
+│       └── droptimizer.js          ← Hourly cron worker (queue seed, submit, poll, retries, manual character runs)
 ├── dist/
 │   └── index.html                  ← Built standalone (npm run build)
 └── src/
@@ -141,6 +146,31 @@ syncStatus      // 'idle' | 'syncing' | 'ok' | 'error'
 - 1-hour localStorage cache for Droptimizer reports
 - Report URLs currently stored per-member in localStorage (migration to guild object planned — see TODO.md)
 
+
+### Droptimizer Automation (`api/cron/droptimizer.js` + status APIs)
+- Unified cron endpoint: `GET /api/cron/droptimizer` (scheduled hourly via `vercel.json`)
+- Uses Supabase scheduler state + lock (`droptimizer_scheduler_state`) to avoid overlap and recover stale runs
+- Daily queue seeded into `sim_runs` for scenario `raid_heroic`; prioritizes Whooplol first, then mains, then alphabetical
+- Retry policy: transient failures become `retryable` with backoff (1h, then 2h); permanent payload/HTTP failures are marked `failed`
+- Completed runs parse report upgrades and persist normalized items to `sim_run_items`; updates `characters.droptimizer_url`
+- Manual validation mode: call `/api/cron/droptimizer?character=<name>&scenario=raid_heroic` with `Authorization: Bearer <CRON_SECRET>` to run one character immediately (useful for Eylac payload validation)
+- Public queue visibility endpoint: `GET /api/droptimizer-status` drives Settings → API status panel and returns active run, next run, queue preview, and today counts
+
+### Droptimizer Payload Sources + Validation (`api/_droptimizer.js` + `api/_raidbots.js`)
+- Scenario payloads support optional JSON env overrides via either:
+  - single env var (for example `RAIDBOTS_DROPTIMIZER_RAID_JSON`), or
+  - chunked env vars (`*_PART_1`, `*_PART_2`, ...), preferred when payload JSON is large
+- Invalid JSON env values are ignored with a warning (cached to avoid log spam); defaults remain active
+- Exact payloads can be stored in Supabase `droptimizer_payloads` and reused as templates for other characters after stripping actor-specific fields (`character`, equipped/class/spec/faction ids)
+- Hard validation before submit: Droptimizer payload must include actor (`payload.character`) and `droptimizerItems[]`; missing fields throw explicit errors and are classified as permanent failures
+- Tests cover env parsing, chunked payload precedence, exact-payload sanitization, and transient vs permanent failure classification
+
+### Automation Tables (Supabase)
+- `sim_runs`: one run per character/scenario/date with status, retries, report URL, errors
+- `sim_run_items`: normalized upgrade rows linked to each run
+- `droptimizer_payloads`: stored exact JSON payloads by character/scenario
+- `droptimizer_scheduler_state`: active lock + active run pointer + last seeded run date
+
 ### Guild KV (`api/guild.js`)
 - `GET /api/guild` — returns guild JSON, no auth. Returns `null` (not error) if KV not configured.
 - `POST /api/guild` — writes guild JSON, requires `X-Write-Token: <GUILD_WRITE_TOKEN>` header
@@ -184,6 +214,29 @@ guild        — { name, region, realm, members[] }
 - ≥50%: `#1eff00` (green)
 - ≥25%: `#0070dd` (blue)
 - <25%: `#9d9d9d` (gray)
+
+## Current Handoff (2026-04-04)
+
+**Active focus:** Validating Droptimizer automation end-to-end for **Eylac** (Subtlety Rogue, EU/Argent Dawn).
+
+**What was just merged (PR #12 — Stage 0.5):**
+- `api/_droptimizer-execution.js` — new: enrollment, validateEnrollmentPayload, batch candidate listing
+- `api/_droptimizer-store.js` — new: all Supabase store helpers, normalizeName
+- `api/droptimizer-enrollment.js` + `api/droptimizer-enrollment/validate.js` — enrollment + payload validation endpoints
+- `api/droptimizer-run.js` — manual run trigger endpoint
+- `workflow-server/` + `workflows/` — Nitro/workflow orchestration layer (groundwork, not yet active in prod)
+- `api/_raidbots.js` — added `extractRaidbotsActorDetails` export; `buildDroptimizerPayload(template, actor)` where actor param takes precedence over template's embedded character
+- `api/_droptimizer-automation.js` — `classifyDroptimizerFailure` now treats missing droptimizerItems/actor as permanent failures
+- `src/components/Settings.jsx` — Droptimizer queue status panel
+
+**Pending blocker:** `RAIDBOTS_SESSION` env var not yet set in Vercel. Required before cron can submit sims.
+
+**To manually validate Eylac:**
+```
+GET /api/cron/droptimizer?character=Eylac&scenario=raid_heroic
+Authorization: Bearer <CRON_SECRET>
+```
+Then check `/api/droptimizer-status` and Supabase `sim_runs`/`sim_run_items`.
 
 ## Agent Guidelines
 - **Always run `npm run build` AND `npm run build:vercel`** after any code change — both must pass

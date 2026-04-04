@@ -215,6 +215,29 @@ guild        — { name, region, realm, members[] }
 - ≥25%: `#0070dd` (blue)
 - <25%: `#9d9d9d` (gray)
 
+## Current Handoff (2026-04-04)
+
+**Active focus:** Validating Droptimizer automation end-to-end for **Eylac** (Subtlety Rogue, EU/Argent Dawn).
+
+**What was just merged (PR #12 — Stage 0.5):**
+- `api/_droptimizer-execution.js` — new: enrollment, validateEnrollmentPayload, batch candidate listing
+- `api/_droptimizer-store.js` — new: all Supabase store helpers, normalizeName
+- `api/droptimizer-enrollment.js` + `api/droptimizer-enrollment/validate.js` — enrollment + payload validation endpoints
+- `api/droptimizer-run.js` — manual run trigger endpoint
+- `workflow-server/` + `workflows/` — Nitro/workflow orchestration layer (groundwork, not yet active in prod)
+- `api/_raidbots.js` — added `extractRaidbotsActorDetails` export; `buildDroptimizerPayload(template, actor)` where actor param takes precedence over template's embedded character
+- `api/_droptimizer-automation.js` — `classifyDroptimizerFailure` now treats missing droptimizerItems/actor as permanent failures
+- `src/components/Settings.jsx` — Droptimizer queue status panel
+
+**Pending blocker:** `RAIDBOTS_SESSION` env var not yet set in Vercel. Required before cron can submit sims.
+
+**To manually validate Eylac:**
+```
+GET /api/cron/droptimizer?character=Eylac&scenario=raid_heroic
+Authorization: Bearer <CRON_SECRET>
+```
+Then check `/api/droptimizer-status` and Supabase `sim_runs`/`sim_run_items`.
+
 ## Agent Guidelines
 - **Always run `npm run build` AND `npm run build:vercel`** after any code change — both must pass
 - **Never add external CSS frameworks** (Tailwind, Bootstrap) — hand-rolled CSS only
