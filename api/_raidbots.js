@@ -22,8 +22,8 @@ function getRaidbotsAuth() {
   return { session, csrf }
 }
 
-function authHeaders() {
-  const { session, csrf } = getRaidbotsAuth()
+function sessionHeaders(session) {
+  const csrf = process.env.RAIDBOTS_CSRF
   const headers = {
     Cookie: `raidsid=${session}`,
     'User-Agent': RAIDBOTS_USER_AGENT,
@@ -31,6 +31,11 @@ function authHeaders() {
 
   if (csrf) headers['x-csrf-token'] = csrf
   return headers
+}
+
+function authHeaders() {
+  const { session } = getRaidbotsAuth()
+  return sessionHeaders(session)
 }
 
 export function buildRaidbotsResultUrl(jobId) {
@@ -100,6 +105,51 @@ export function extractRaidbotsActorDetails(actor) {
     specName,
     faction,
   }
+function resolveActorName(actor, fallback = null) {
+  return actor?.name
+    ?? actor?.character?.name
+    ?? fallback
+}
+
+function resolveActorRealm(actor, fallback = null) {
+  return actor?.realm?.slug
+    ?? actor?.realm?.name
+    ?? fallback
+}
+
+function resolveActorRegion(actor, fallback = null) {
+  return actor?.region?.slug
+    ?? actor?.region?.name
+    ?? actor?.region
+    ?? fallback
+}
+
+function resolveActorClassId(actor, fallback = null) {
+  return actor?.class?.id
+    ?? actor?.classs?.id
+    ?? actor?.class
+    ?? fallback
+}
+
+function resolveActorSpecId(actor, fallback = null) {
+  return actor?.spec?.id
+    ?? actor?.specId
+    ?? actor?.active_spec?.id
+    ?? actor?.talentLoadout?.spec?.id
+    ?? fallback
+}
+
+function resolveActorSpecName(actor, fallback = null) {
+  return actor?.spec?.name
+    ?? actor?.active_spec?.name
+    ?? actor?.talentLoadout?.spec?.name
+    ?? fallback
+}
+
+function resolveActorItems(actor, fallback = {}) {
+  return actor?.items
+    ?? actor?.equipped
+    ?? fallback
 }
 
 async function loginRaidbotsSession(email, password) {
@@ -162,44 +212,34 @@ export async function fetchRaidbotsCharacter(region, realm, name) {
   return characterRes.json()
 }
 
-function buildDroptimizerPayload(droptimizer, character) {
-  const isExactPayload = droptimizer?.type === 'droptimizer'
-    && droptimizer?.character
-    && Array.isArray(droptimizer?.droptimizerItems)
-    && droptimizer?.droptimizer
-
-  if (isExactPayload) {
-    return droptimizer
-  }
-
-  const region = droptimizer?.armory?.region ?? droptimizer?.region
-  const realm = droptimizer?.armory?.realm ?? droptimizer?.realm
-  const name = droptimizer?.armory?.name ?? droptimizer?.name ?? droptimizer?.baseActorName
+export function buildDroptimizerPayload(droptimizer, character) {
+  const actor = character ?? droptimizer?.character
+  const region = resolveActorRegion(actor, droptimizer?.armory?.region ?? droptimizer?.region)
+  const realm = resolveActorRealm(actor, droptimizer?.armory?.realm ?? droptimizer?.realm)
+  const name = resolveActorName(actor, droptimizer?.armory?.name ?? droptimizer?.name ?? droptimizer?.baseActorName)
 
   if (!region || !realm || !name) {
     throw new Error('Droptimizer payload requires region, realm, and name')
   }
 
-  const actor = droptimizer?.character ?? character
-  const actorDetails = extractRaidbotsActorDetails(actor)
+  if (!actor) {
+    throw new Error('Droptimizer payload is missing a character actor')
+  }
+
   const scenarioOptions = droptimizer?.droptimizer && typeof droptimizer.droptimizer === 'object'
     ? droptimizer.droptimizer
     : {}
-  const classId = scenarioOptions.classId
-    ?? actorDetails.classId
-    ?? null
-  const specId = scenarioOptions.specId
-    ?? actorDetails.specId
-    ?? null
+  const classId = resolveActorClassId(actor, scenarioOptions.classId ?? null)
+  const specId = resolveActorSpecId(actor, scenarioOptions.specId ?? null)
 
   const nestedDroptimizer = {
     ...scenarioOptions,
-    equipped: scenarioOptions.equipped ?? actorDetails.items ?? {},
+    equipped: resolveActorItems(actor, scenarioOptions.equipped ?? {}),
     difficulty: scenarioOptions.difficulty ?? droptimizer?.difficulty ?? 'raid-heroic',
     classId,
     specId,
     lootSpecId: scenarioOptions.lootSpecId ?? specId,
-    faction: scenarioOptions.faction ?? normalizeFaction(actorDetails.faction),
+    faction: normalizeFaction(actor?.faction ?? scenarioOptions.faction),
   }
 
   if (Array.isArray(droptimizer?.instances) && !nestedDroptimizer.instances) {
@@ -226,14 +266,17 @@ function buildDroptimizerPayload(droptimizer, character) {
     ...droptimizer,
     type: 'droptimizer',
     reportName: droptimizer?.reportName ?? `Droptimizer • ${name}`,
-    baseActorName: droptimizer?.baseActorName ?? name,
+    baseActorName: name,
     armory: {
       region: String(region).trim().toLowerCase(),
       realm: slugifyRealm(realm),
       name,
     },
+    region: String(region).trim().toLowerCase(),
+    realm: slugifyRealm(realm),
+    name,
     character: actor,
-    spec: droptimizer?.spec ?? actorDetails.specName,
+    spec: resolveActorSpecName(actor, droptimizer?.spec ?? null),
     gearsets: Array.isArray(droptimizer?.gearsets) ? droptimizer.gearsets : [],
     talents: Object.prototype.hasOwnProperty.call(droptimizer ?? {}, 'talents') ? droptimizer.talents : null,
     talentSets: Array.isArray(droptimizer?.talentSets) ? droptimizer.talentSets : [],
@@ -287,21 +330,60 @@ export async function submitRaidbotsDroptimizer({ session, droptimizer } = {}) {
     keystoneLevel: payload.droptimizer?.keystoneLevel ?? null,
   }))
 
+  const body = JSON.stringify(payload)
+  const submitHeaders = {
+    ...sessionHeaders(activeSession),
+    'Content-Type': 'application/json',
+    Referer: `${RAIDBOTS_BASE}/simbot/droptimizer`,
+    Origin: RAIDBOTS_BASE,
+  }
+
   const submitRes = await fetch(`${RAIDBOTS_BASE}/sim`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Cookie: `raidsid=${activeSession}`,
-      Referer: `${RAIDBOTS_BASE}/simbot/droptimizer`,
-      Origin: RAIDBOTS_BASE,
-      'User-Agent': RAIDBOTS_USER_AGENT,
-    },
-    body: JSON.stringify(payload),
+    headers: submitHeaders,
+    body,
   })
 
   if (!submitRes.ok) {
     const text = await submitRes.text()
-    throw new Error(`Raidbots Droptimizer submit failed (${submitRes.status}): ${text}`)
+    const shouldRetryViaJobApi = submitRes.status >= 500
+      || /Seri did not properly handle an error/i.test(text)
+
+    if (!shouldRetryViaJobApi) {
+      throw new Error(`Raidbots Droptimizer submit failed (${submitRes.status}): ${text}`)
+    }
+
+    console.warn(`[raidbots droptimizer submit] /sim failed (${submitRes.status}); retrying /api/job/droptimizer`)
+
+    const fallbackRes = await fetch(`${RAIDBOTS_BASE}${SIM_TYPE_MAP.droptimizer}`, {
+      method: 'POST',
+      headers: {
+        ...sessionHeaders(activeSession),
+        'Content-Type': 'application/json',
+        Referer: `${RAIDBOTS_BASE}/simbot`,
+        Origin: RAIDBOTS_BASE,
+      },
+      body,
+    })
+
+    if (!fallbackRes.ok) {
+      const fallbackText = await fallbackRes.text()
+      throw new Error(`Raidbots Droptimizer submit failed (${submitRes.status}): ${text}; fallback /api/job/droptimizer failed (${fallbackRes.status}): ${fallbackText}`)
+    }
+
+    const fallbackData = await fallbackRes.json()
+    const fallbackSimId = fallbackData.job?.id ?? fallbackData.id ?? fallbackData.simId ?? null
+
+    if (!fallbackSimId) {
+      throw new Error('Raidbots Droptimizer fallback did not return a sim ID')
+    }
+
+    return {
+      simId: fallbackSimId,
+      jobId: fallbackData.job?.id ?? fallbackData.id ?? null,
+      payload,
+      raw: fallbackData,
+    }
   }
 
   const data = await submitRes.json()
@@ -313,6 +395,7 @@ export async function submitRaidbotsDroptimizer({ session, droptimizer } = {}) {
   return {
     simId,
     jobId: data.jobId ?? null,
+    payload,
     raw: data,
   }
 }

@@ -3,7 +3,7 @@ import test from 'node:test'
 import { RUN_STATUSES } from '../api/_droptimizer-automation.js'
 import { isQueueRunEligible, summarizeAutomationQueue } from '../api/_droptimizer-status.js'
 
-test('queue summary picks the next eligible run even if queue head is waiting for retry', () => {
+test('queue summary still exposes the first ready main character', () => {
   const summary = summarizeAutomationQueue({
     now: Date.parse('2026-04-03T20:30:00Z'),
     characters: [
@@ -33,11 +33,11 @@ test('queue summary picks the next eligible run even if queue head is waiting fo
     ],
   })
 
-  assert.equal(summary.queueHeadRun.character_name, 'Whooplol')
+  assert.equal(summary.queueHeadRun.character_name, 'Hilfa')
   assert.equal(summary.nextRunnableRun.character_name, 'Hilfa')
   assert.deepEqual(
     summary.queuePreview.map((run) => run.character_name),
-    ['Whooplol', 'Hilfa', 'Chenex'],
+    ['Hilfa', 'Whooplol', 'Chenex'],
   )
 })
 

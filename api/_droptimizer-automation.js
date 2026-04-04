@@ -1,3 +1,5 @@
+import { dateKeyInTimeZone } from './_droptimizer-store.js'
+
 export const AUTOMATED_DROPTIMIZER_SCENARIO = 'raid_heroic'
 
 export const RUN_STATUSES = {
@@ -19,10 +21,8 @@ const PERMANENT_RAIDBOTS_ERRORS = new Set([
   'unsupported_spec',
 ])
 
-const EXACT_PRIORITY_CHARACTERS = new Set(['whooplol'])
-
 export function todayDateString(date = new Date()) {
-  return date.toISOString().slice(0, 10)
+  return dateKeyInTimeZone(date)
 }
 
 export function isTerminalRunStatus(status) {
@@ -43,6 +43,7 @@ export function classifyDroptimizerFailure(error) {
   const message = String(error?.message ?? error ?? '').trim() || 'Unknown Droptimizer error'
   const httpStatus = extractRaidbotsHttpStatus(message)
   const errorCode = extractRaidbotsErrorCode(message)
+
 
   if (/missing droptimizerItems|missing a character actor/i.test(message)) {
     return { kind: 'permanent', httpStatus, errorCode, message }
@@ -78,10 +79,6 @@ export function getRetryDelayMs(attemptCount) {
 export function compareQueuedCharacters(left, right) {
   const leftName = String(left?.character_name ?? left?.name ?? '').trim()
   const rightName = String(right?.character_name ?? right?.name ?? '').trim()
-
-  const leftExact = EXACT_PRIORITY_CHARACTERS.has(leftName.toLowerCase()) ? 0 : 1
-  const rightExact = EXACT_PRIORITY_CHARACTERS.has(rightName.toLowerCase()) ? 0 : 1
-  if (leftExact !== rightExact) return leftExact - rightExact
 
   const leftMain = left?.is_main === false ? 1 : 0
   const rightMain = right?.is_main === false ? 1 : 0

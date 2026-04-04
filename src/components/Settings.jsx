@@ -241,6 +241,348 @@ function DroptimizerAutomationStatus({ enabled }) {
 
 // ── CharacterRow (collapsed / expanded) ─────────────────────────────────────
 
+function formatEnrollmentStatus(status) {
+  switch (status) {
+    case 'valid':
+      return 'Valid'
+    case 'pending':
+      return 'Pending'
+    case 'invalid':
+      return 'Invalid'
+    default:
+      return 'Not enrolled'
+  }
+}
+
+function statusTone(status) {
+  if (status === 'valid') return 'var(--success)'
+  if (status === 'pending') return 'var(--warning)'
+  if (status === 'invalid') return '#ff7070'
+  return 'var(--text-muted)'
+}
+
+function formatTimestampMeta(value) {
+  if (!value) return '—'
+  const time = Date.parse(value)
+  if (Number.isNaN(time)) return '—'
+  return `${timeAgo(time)} (${formatShortTime(value) ?? '—'})`
+}
+
+function DroptimizerAutomationControlPanel({ enabled, members, writeToken }) {
+  const [status, setStatus] = useState('idle')
+  const [detail, setDetail] = useState('')
+  const [data, setData] = useState(null)
+  const [actionState, setActionState] = useState('idle')
+  const [actionDetail, setActionDetail] = useState('')
+  const [selectedCharacter, setSelectedCharacter] = useState('')
+  const [payloadText, setPayloadText] = useState('')
+
+  useEffect(() => {
+    if (!selectedCharacter && members?.length) {
+      setSelectedCharacter(members[0].name)
+    }
+  }, [members, selectedCharacter])
+
+  async function loadStatus() {
+    setStatus((current) => (current === 'ok' ? 'refreshing' : 'loading'))
+    setDetail('')
+
+    try {
+      const res = await fetch('/api/droptimizer-status')
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setStatus('error')
+        setDetail(payload.error ?? `HTTP ${res.status}`)
+        return
+      }
+
+      if (payload.available === false) {
+        setStatus('empty')
+        setData(payload)
+        setDetail(payload.reason ?? 'Automation status unavailable')
+        return
+      }
+
+      setStatus('ok')
+      setData(payload)
+    } catch (error) {
+      setStatus('error')
+      setDetail(error.message)
+    }
+  }
+
+  async function runWriteAction({ endpoint, method = 'POST', body = null, successMessage }) {
+    if (!writeToken) {
+      setActionState('error')
+      setActionDetail('Unlock guild editing first to manage automation.')
+      return null
+    }
+
+    setActionState('working')
+    setActionDetail('')
+
+    try {
+      const res = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Write-Token': writeToken,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setActionState('error')
+        setActionDetail(payload.error ?? `HTTP ${res.status}`)
+        return null
+      }
+
+      setActionState('ok')
+      setActionDetail(successMessage ?? payload.message ?? 'Done')
+      await loadStatus()
+      return payload
+    } catch (error) {
+      setActionState('error')
+      setActionDetail(error.message)
+      return null
+    }
+  }
+
+  useEffect(() => {
+    if (!enabled) return undefined
+
+    let active = true
+    async function loadIfActive() {
+      if (!active) return
+      await loadStatus()
+    }
+
+    loadIfActive()
+    const intervalId = setInterval(loadIfActive, 60_000)
+
+    return () => {
+      active = false
+      clearInterval(intervalId)
+    }
+  }, [enabled])
+
+  const rows = data?.rows ?? []
+  const counts = data?.counts ?? {}
+  const selectedRow = rows.find((row) => row.character === selectedCharacter) ?? null
+  const schedulerUpdatedAgo = data?.scheduler?.updatedAt
+    ? timeAgo(Date.parse(data.scheduler.updatedAt))
+    : null
+
+  return (
+    <div style={automationCardStyle}>
+      <div style={automationHeaderStyle}>
+        <div>
+          <h4 style={automationTitleStyle}>Droptimizer Automation</h4>
+          <div style={automationMetaStyle}>
+            {schedulerUpdatedAgo
+              ? `Scheduler updated ${schedulerUpdatedAgo}`
+              : 'Enrollment-backed automation status'}
+          </div>
+        </div>
+        <button
+          onClick={loadStatus}
+          disabled={status === 'loading' || status === 'refreshing'}
+          style={{
+            ...actionBtn,
+            borderColor: 'var(--frost-blue)',
+            color: 'var(--frost-blue)',
+            opacity: status === 'loading' || status === 'refreshing' ? 0.55 : 1,
+          }}
+        >
+          {status === 'loading' || status === 'refreshing' ? '…' : 'Refresh'}
+        </button>
+      </div>
+
+      {detail && (
+        <div style={status === 'error' ? automationErrorStyle : automationMutedStyle}>
+          {detail}
+        </div>
+      )}
+
+      {actionDetail && (
+        <div style={actionState === 'error' ? automationErrorStyle : automationMutedStyle}>
+          {actionDetail}
+        </div>
+      )}
+
+      {status === 'ok' && data && (
+        <>
+          <div style={automationGridStyle}>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Valid</span>
+              <span>{counts.valid ?? 0}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Pending</span>
+              <span>{counts.pending ?? 0}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Invalid</span>
+              <span>{counts.invalid ?? 0}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Not Enrolled</span>
+              <span>{counts.not_enrolled ?? 0}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Run Date</span>
+              <span>{data.runDate ?? '—'}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Workflow</span>
+              <span>{data.activeWorkflowRunId ?? 'None'}</span>
+            </div>
+          </div>
+
+          <div style={automationGridStyle}>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Last Started</span>
+              <span>{formatTimestampMeta(data.lastStartedAt)}</span>
+            </div>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Last Completed</span>
+              <span>{formatTimestampMeta(data.lastCompletedAt)}</span>
+            </div>
+          </div>
+
+          <div style={automationActionPanelStyle}>
+            <div style={automationItemStyle}>
+              <span style={automationLabelStyle}>Character</span>
+              <select
+                value={selectedCharacter}
+                onChange={(e) => setSelectedCharacter(e.target.value)}
+                style={{ ...inputStyle, width: '100%' }}
+              >
+                {members?.filter((member) => member?.name).map((member) => (
+                  <option key={member.name} value={member.name}>{member.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {selectedRow && (
+              <div style={automationSelectedRowStyle}>
+                <span style={{ ...automationBadgeStyle, color: statusTone(selectedRow.enrollmentStatus), borderColor: statusTone(selectedRow.enrollmentStatus) }}>
+                  {formatEnrollmentStatus(selectedRow.enrollmentStatus)}
+                </span>
+                <span style={automationMutedStyle}>
+                  Last run: {selectedRow.lastRunStatus ?? '—'} • Report: {selectedRow.reportUrl ? 'saved' : 'none'}
+                </span>
+              </div>
+            )}
+
+            <textarea
+              value={payloadText}
+              onChange={(e) => setPayloadText(e.target.value)}
+              placeholder="Paste the exact Raidbots Droptimizer request JSON for the selected character"
+              style={automationTextareaStyle}
+            />
+
+            <div style={automationButtonRowStyle}>
+              <button
+                onClick={() => runWriteAction({
+                  endpoint: '/api/droptimizer-enrollment',
+                  body: {
+                    characterName: selectedCharacter,
+                    scenario: 'raid_heroic',
+                    payload: payloadText,
+                  },
+                  successMessage: `Saved enrollment for ${selectedCharacter}.`,
+                })}
+                disabled={actionState === 'working' || !selectedCharacter || !payloadText.trim()}
+                style={{ ...actionBtn, ...automationPrimaryButtonStyle, opacity: (actionState === 'working' || !selectedCharacter || !payloadText.trim()) ? 0.55 : 1 }}
+              >
+                Save Payload
+              </button>
+              <button
+                onClick={() => runWriteAction({
+                  endpoint: '/api/droptimizer-enrollment/validate',
+                  body: {
+                    characterName: selectedCharacter,
+                    scenario: 'raid_heroic',
+                  },
+                  successMessage: `Validation started for ${selectedCharacter}.`,
+                })}
+                disabled={actionState === 'working' || !selectedCharacter}
+                style={{ ...actionBtn, ...automationSecondaryButtonStyle, opacity: (actionState === 'working' || !selectedCharacter) ? 0.55 : 1 }}
+              >
+                Validate
+              </button>
+              <button
+                onClick={() => runWriteAction({
+                  endpoint: '/api/droptimizer-run',
+                  body: {
+                    characterName: selectedCharacter,
+                    scenario: 'raid_heroic',
+                  },
+                  successMessage: `Run started for ${selectedCharacter}.`,
+                })}
+                disabled={actionState === 'working' || !selectedCharacter}
+                style={{ ...actionBtn, ...automationSecondaryButtonStyle, opacity: (actionState === 'working' || !selectedCharacter) ? 0.55 : 1 }}
+              >
+                Run Now
+              </button>
+              <button
+                onClick={() => runWriteAction({
+                  endpoint: '/api/droptimizer-run',
+                  body: {
+                    scenario: 'raid_heroic',
+                    batch: true,
+                  },
+                  successMessage: 'Batch run started.',
+                })}
+                disabled={actionState === 'working'}
+                style={{ ...actionBtn, ...automationSecondaryButtonStyle, opacity: actionState === 'working' ? 0.55 : 1 }}
+              >
+                Run Batch
+              </button>
+              <button
+                onClick={() => runWriteAction({
+                  endpoint: `/api/droptimizer-enrollment?characterName=${encodeURIComponent(selectedCharacter)}&scenario=raid_heroic`,
+                  method: 'DELETE',
+                  successMessage: `Cleared enrollment for ${selectedCharacter}.`,
+                })}
+                disabled={actionState === 'working' || !selectedCharacter}
+                style={{ ...actionBtn, borderColor: '#ff7070', color: '#ff7070', opacity: (actionState === 'working' || !selectedCharacter) ? 0.55 : 1 }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div style={automationRowsStyle}>
+            {rows.map((row) => (
+              <div key={row.character} style={automationRowStyle}>
+                <div style={automationRowHeaderStyle}>
+                  <span style={{ fontWeight: 700 }}>{row.character}</span>
+                  <span style={{ ...automationBadgeStyle, color: statusTone(row.enrollmentStatus), borderColor: statusTone(row.enrollmentStatus) }}>
+                    {formatEnrollmentStatus(row.enrollmentStatus)}
+                  </span>
+                </div>
+                <div style={automationMutedStyle}>
+                  Last run: {row.lastRunStatus ?? '—'} • Completed: {formatTimestampMeta(row.lastCompletedAt)}
+                </div>
+                {row.lastValidationError && (
+                  <div style={automationErrorStyle}>{row.lastValidationError}</div>
+                )}
+                {row.reportUrl && (
+                  <a href={row.reportUrl} target="_blank" rel="noreferrer" style={automationLinkStyle}>
+                    Open Report
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function CharacterRow({ member, mainNames, onChange, onRemove }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -631,7 +973,11 @@ export default function Settings({ open, onClose, guild, onGuildChange, writeTok
                 endpoint="/api/guild"
               />
               <div style={{ height: '1rem' }} />
-              <DroptimizerAutomationStatus enabled={activeTab === 'api'} />
+              <DroptimizerAutomationControlPanel
+                enabled={activeTab === 'api'}
+                members={localGuild.members}
+                writeToken={writeToken}
+              />
             </section>
           )}
         </div>
@@ -727,4 +1073,87 @@ const automationMutedStyle = {
 const automationErrorStyle = {
   fontSize: '0.78rem',
   color: '#ff7070',
+}
+
+const automationActionPanelStyle = {
+  display: 'grid',
+  gap: '0.75rem',
+  padding: '0.75rem',
+  borderRadius: '8px',
+  background: 'rgba(0,0,0,0.18)',
+  border: '1px solid rgba(255,255,255,0.06)',
+}
+
+const automationTextareaStyle = {
+  width: '100%',
+  minHeight: '140px',
+  resize: 'vertical',
+  background: '#10101b',
+  border: '1px solid #333',
+  color: '#e0e0e0',
+  borderRadius: '6px',
+  padding: '0.6rem 0.7rem',
+  fontSize: '0.8rem',
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+}
+
+const automationButtonRowStyle = {
+  display: 'flex',
+  gap: '0.5rem',
+  flexWrap: 'wrap',
+}
+
+const automationPrimaryButtonStyle = {
+  borderColor: 'var(--frost-blue)',
+  color: 'var(--frost-blue)',
+}
+
+const automationSecondaryButtonStyle = {
+  borderColor: 'rgba(255,255,255,0.2)',
+  color: '#d8d8de',
+}
+
+const automationSelectedRowStyle = {
+  display: 'flex',
+  gap: '0.6rem',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+}
+
+const automationBadgeStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0.12rem 0.5rem',
+  borderRadius: '999px',
+  border: '1px solid currentColor',
+  fontSize: '0.72rem',
+  fontWeight: 700,
+}
+
+const automationRowsStyle = {
+  display: 'grid',
+  gap: '0.6rem',
+}
+
+const automationRowStyle = {
+  display: 'grid',
+  gap: '0.35rem',
+  padding: '0.75rem',
+  borderRadius: '8px',
+  border: '1px solid rgba(255,255,255,0.06)',
+  background: 'rgba(255,255,255,0.02)',
+}
+
+const automationRowHeaderStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+}
+
+const automationLinkStyle = {
+  color: 'var(--frost-blue)',
+  fontSize: '0.78rem',
+  textDecoration: 'none',
 }
