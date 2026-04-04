@@ -44,6 +44,7 @@ export function classifyDroptimizerFailure(error) {
   const httpStatus = extractRaidbotsHttpStatus(message)
   const errorCode = extractRaidbotsErrorCode(message)
 
+
   if (/missing droptimizerItems|missing a character actor/i.test(message)) {
     return { kind: 'permanent', httpStatus, errorCode, message }
   }
