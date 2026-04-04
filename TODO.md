@@ -1,41 +1,24 @@
-# WoW Guild Planner — Roadmap
+# WowGearDiary Backlog
 
-## Shipped
+Use this file for prioritized, still-relevant work. Move implementation details into a dated plan under `docs/plans/` once a task is ready to execute.
 
-- Guild overview: member cards with live Blizzard gear, WCL parses, and Raidbots DPS
-- Cloud guild roster via Vercel KV with password-gated writes
-- Settings drawer: Guild / Characters / API tabs; Cloud Sync + Droptimizer queue status panel
-- Character detail view: Droptimizer upgrade table, Raidbots quick sim, WCL per-boss parse, gear list
-- WCL: avg parse (auto-zone), expandable per-boss breakdown
-- Blizzard API: live iLvl, spec/class auto-learn, tier count badges, crafted weapon detection
-- Droptimizer: server-side parse (16KB vs 500KB raw), sortable upgrade table
-- Report URLs synced into guild state (shared across devices via Supabase)
-- Droptimizer automation pipeline: hourly cron, queue, submit, poll, retry, store results in Supabase
-- Droptimizer queue status panel in Settings
-- Enrollment API + payload validation endpoint
-- Manual run trigger endpoint
+## Now
 
----
+- [ ] Diagnose and stabilize the Raidbots Droptimizer integration end-to-end before taking on additional roadmap work
+- [ ] Set `RAIDBOTS_SESSION` in Vercel and validate the Eylac flow end-to-end
+- [ ] Enroll Eylac, validate an exact payload, manually run the scenario, and confirm `sim_runs`, `sim_run_items`, and `characters.droptimizer_url` update correctly
+- [ ] Auto-post sim DPS snapshots from `RaidbotsSection` to `/api/snapshots?type=sim` after a successful saved sim result
+- [ ] Add last-fetched timestamps for Blizzard and WCL data in both member cards and character detail
+- [ ] Add per-character refresh controls that explicitly bust cached Blizzard and WCL data
 
-## Active: Eylac Droptimizer Flow Validation
+## Next
 
-- [ ] Set RAIDBOTS_SESSION in Vercel dashboard
-- [ ] Enroll Eylac and supply validated exact payload
-- [ ] Confirm end-to-end: run completes, sim_run_items populated, droptimizer_url updated
-- [ ] Validate DroptimizerSection in UI shows Eylac's results correctly
+- [ ] Invalidate WCL cache on weekly reset so parses refresh without manual storage clearing
+- [ ] Reduce unnecessary full-roster syncs when only one member changes
+- [ ] Evaluate a small cache strategy for `ProgressionCharts` if repeated fetches become noisy
 
----
+## Later
 
-## Up Next — Polish & Wire Remaining Plumbing
-
-- [ ] **Sim DPS snapshot auto-post** — wire RaidbotsSection to POST /api/snapshots?type=sim when sim URL is saved and DPS loads (needs writeToken passed down from App)
-- [ ] **Last-fetched timestamps** — show "fetched 3 min ago" on CharacterView and MemberCard; "Report from Apr 4" near Raidbots/Droptimizer sections
-- [ ] **Refresh controls** — force-bust Blizzard + WCL cache per character without clearing all localStorage
-- [ ] **WCL cache auto-invalidation** — bust on EU Tuesday 09:00 UTC so new week parses show immediately
-
----
-
-## Backlog
-
-- [ ] **Discord webhook** — weekly summary (avg parses, new loot, vault slots) to guild Discord
-- [ ] **Attendance tracking** — log raid attendance per member, track % over time
+- [ ] Replace deprecated `@vercel/kv` usage with the supported Upstash Redis client
+- [ ] Post weekly guild summaries to Discord
+- [ ] Track raid attendance over time

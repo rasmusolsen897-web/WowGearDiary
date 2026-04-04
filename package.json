@@ -11,7 +11,8 @@
     "build": "vite build",
     "build:vercel": "node scripts/clean-vercel-output.mjs && vite build --config vite.config.vercel.js",
     "preview": "vite preview",
-    "test": "node --test --test-isolation=none test/*.test.mjs"
+    "test": "node --test --test-isolation=none test/*.test.mjs",
+    "verify": "npm run test && npm run build && npm run build:vercel"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",

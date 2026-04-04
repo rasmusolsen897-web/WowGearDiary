@@ -1,113 +1,92 @@
-# WoW Gear Diary — Project Status
+# WowGearDiary Project Status
 _Last updated: 2026-04-04_
 
----
+## Current State
 
-## Architecture Overview
+WowGearDiary is a working React + Vite SPA with Vercel serverless APIs, shared guild persistence, and live Blizzard/WCL integrations. Guild overview, character detail, report ingestion, progression history, and the new Droptimizer automation surface are in place, but the Raidbots Droptimizer integration is currently the main blocker and is not yet reliable enough to treat as a stable feature.
 
-Browser SPA (Vite/React) + Vercel Serverless (api/) + Supabase Postgres + Vercel KV
+The repo also now has a lightweight engineering workflow adapted from `obra/superpowers`:
 
-**API endpoints:**
-- /api/blizzard, /api/wcl, /api/guild, /api/characters, /api/snapshots, /api/raidbots, /api/raidbots-report
-- /api/droptimizer-status — queue/scheduler status (drives Settings panel)
-- /api/droptimizer-enrollment — enroll characters into automated runs
-- /api/droptimizer-enrollment/validate — validate + store exact payload
-- /api/droptimizer-run — manually trigger a single character run
-- /api/cron/droptimizer — hourly cron worker
+- project context in `docs/project-context.md`
+- SWE rules in `docs/engineering-playbook.md`
+- `npm run verify` as the default verification command
+- CI enforcing the verification suite on pushes and PRs
 
-**Storage:**
-- Vercel KV (Upstash Redis): guild metadata only
-- Supabase Postgres: characters, ilvl_snapshots, sim_snapshots, sim_runs, sim_run_items, droptimizer_payloads, droptimizer_scheduler_state, droptimizer_enrollments
+## Architecture Snapshot
 
----
+```text
+Browser
+  React SPA (Vite)
+    GuildOverview
+    CharacterView
 
-## What's Been Built
+Vercel Serverless
+  /api/blizzard
+  /api/wcl
+  /api/guild
+  /api/characters
+  /api/snapshots
+  /api/raidbots
+  /api/raidbots-report
+  /api/droptimizer-status
+  /api/droptimizer-enrollment
+  /api/droptimizer-enrollment/validate
+  /api/droptimizer-run
+  /api/cron/droptimizer
 
-### Core App
-- App.jsx, GuildOverview, CharacterView, GuildHeader, Settings (with Droptimizer queue panel)
-- RaidbotsSection, DroptimizerSection, WclSection, ProgressionCharts in CharacterView
-- Whooplol-only panels: TierProgress, CatalystPlanner, GearSlots, SimTable, UpgradeCharts, WeeklyTracker, RaidBossPriority, DungeonPriority, GamePlan
+Storage
+  Vercel KV for guild metadata
+  Supabase for characters, snapshots, sim runs, payloads, enrollments, and automation state
+```
 
-### Key API files
-- api/_raidbots.js — submit/poll, buildDroptimizerPayload, extractRaidbotsActorDetails
-- api/_droptimizer.js — DROPTIMIZER_SCENARIOS, isExactDroptimizerPayload, buildScenarioPayload
-- api/_droptimizer-automation.js — classifyDroptimizerFailure, compareQueuedCharacters, RUN_STATUSES
-- api/_droptimizer-execution.js — validateEnrollmentPayload, listBatchCandidates, enrollment logic
-- api/_droptimizer-store.js — all Supabase helpers, normalizeName
-- api/_droptimizer-status.js — summarizeAutomationQueue, isQueueRunEligible
-- api/cron/droptimizer.js — main hourly worker: seed queue, submit, poll, retry, store results
+## Healthy Areas
 
-### Workflow Layer (stage 0.5 — groundwork laid, not production-active yet)
-- workflow-server/api/cron/droptimizer.get.js — Nitro handler
-- workflow-server/api/droptimizer-enrollment/validate.post.js
-- workflow-server/api/droptimizer-run.post.js
-- workflows/droptimizer-runs.js — workflow definition: submit, poll, store per character
+- Guild overview and character detail flows are implemented
+- Supabase is the main persistence layer for characters and progression history
+- Blizzard and Warcraft Logs integrations are broadly in place
+- Stage 0.5 Droptimizer groundwork is merged: enrollment, validation, manual run, queue status, and workflow scaffolding
+- The repo has a clearer contribution workflow, PR checklist, and CI baseline
 
----
+## Active Gaps
 
-## Current Focus: Eylac Droptimizer Validation
+### Highest priority
 
-**Goal:** Validate the full cron/droptimizer automation flow end-to-end for Eylac (Subtlety Rogue, EU/Argent Dawn).
+- Raidbots Droptimizer integration is the core active problem; after 1-2 days of effort it still does not work reliably end-to-end
+- The immediate need is diagnosis and stabilization of the Droptimizer flow before additional roadmap work
+- Current live validation focus is Eylac: enroll, validate exact payload, manually run, and confirm results persist correctly
+- `RAIDBOTS_SESSION` remains a live dependency for cron-based automation validation
+- Sim DPS snapshots are not yet posted automatically from the client when a new Raidbots result is saved
 
-**Steps:**
-1. Enroll Eylac: POST /api/droptimizer-enrollment
-2. Supply exact payload: POST /api/droptimizer-enrollment/validate
-3. Manual run: GET /api/cron/droptimizer?character=Eylac&scenario=raid_heroic with Bearer CRON_SECRET
-4. Verify: poll /api/droptimizer-status, check sim_runs + sim_run_items in Supabase
-5. Confirm characters.droptimizer_url updated for Eylac
+### Next quality improvements
 
-**Blocker:** RAIDBOTS_SESSION env var still pending (set in Vercel dashboard).
+- Add last-fetched timestamps for Blizzard and WCL data
+- Add explicit refresh controls to bust per-character caches
+- Invalidate WCL cache on weekly reset
 
----
+### Longer-term product work
 
-## What's In Progress / Remaining
-
-### Sim DPS snapshots from client — not wired
-- api/snapshots.js?type=sim endpoint exists
-- RaidbotsSection does not POST to it when a sim URL is saved + DPS loads
-- Need: useEffect on [dps] in RaidbotsSection firing POST /api/snapshots?type=sim
-- Requires writeToken passed down from App to CharacterView to RaidbotsSection
-
-### Backlog (not started)
-- Last-fetched timestamps ("fetched 3 min ago" on cards)
-- Refresh button to bust Blizzard/WCL cache per character
-- WCL cache auto-invalidation on EU Tuesday 09:00 UTC reset
-- Discord webhook for weekly raid summary
+- Discord webhook summary output
 - Attendance tracking
+- Eventual migration away from deprecated `@vercel/kv`
 
----
+## Important Decisions
 
-## Key Decisions
+- Supabase remains the source of truth for synced character rows and history
+- Vercel KV remains limited to lightweight guild metadata
+- The app stays a single-page React experience without routing unless product needs change
+- Styling remains hand-rolled CSS
+- Third-party API access stays server-side in `api/`
+- `buildDroptimizerPayload(template, character)` should let the explicit character input override embedded actor/template identity
 
-- buildDroptimizerPayload(template, character): character param takes precedence over actor in template
-- Supabase over KV for history (KV is a single blob, can't query)
-- Service role key server-side only
-- api/characters returns null (not []) when empty — signals KV fallback needed
-- SVG sparklines, no chart library
-- Report URLs on members objects (synced via Supabase, shared across devices)
+## Known Tech Debt
 
----
+- `@vercel/kv` is deprecated and should eventually move to `@upstash/redis`
+- Raidbots Droptimizer remains the highest-risk integration area despite existing code and tests; current implementation confidence is low until the live flow is proven
+- `ProgressionCharts` fetches on each character-view mount and could use light caching if traffic grows
+- Character updates currently sync the whole members array instead of a finer-grained delta
 
-## Known Bugs / Tech Debt
+## Operational Notes
 
-- @vercel/kv deprecation warning — migrate to @upstash/redis eventually
-- Sim snapshots not auto-posted from client
-- ProgressionCharts fetches on every CharacterView mount (no cache)
-- updateMember syncs entire members array on every Blizzard auto-learn
-
----
-
-## Required Env Vars
-
-```
-BLIZZARD_CLIENT_ID / BLIZZARD_CLIENT_SECRET
-WCL_CLIENT_ID / WCL_CLIENT_SECRET
-GUILD_WRITE_TOKEN
-KV_REST_API_URL / KV_REST_API_TOKEN
-SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
-CRON_SECRET
-RAIDBOTS_SESSION                    <- PENDING (needed for droptimizer automation)
-RAIDBOTS_EMAIL / RAIDBOTS_PASSWORD  (fallback if SESSION not set)
-RAIDBOTS_CSRF                       (optional)
-RAIDBOTS_DROPTIMIZER_RAID_JSON      (optional exact payload override for raid_heroic)
-```
+- Keep `docs/project-context.md` updated when architecture changes
+- Keep `TODO.md` focused on prioritized next work, not historical notes
+- Record meaningful handoff details in `docs/SESSION_LOG.md`

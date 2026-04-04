@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Engineering Playbook
+    url: https://github.com/rasmusolsen897-web/WowGearDiary/blob/master/docs/engineering-playbook.md
+    about: Review the repo workflow and definition of done before opening implementation work.
