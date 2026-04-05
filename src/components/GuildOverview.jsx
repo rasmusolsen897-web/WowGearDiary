@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useBlizzardAPI, useBlizzardMedia, useCharacterParses } from '../hooks/index.js'
 import { useRaidbotsReport, getStoredReportUrl } from '../hooks/useRaidbotsReport.js'
 import { timeAgo } from '../utils/timeAgo.js'
+import { getAverageWclParse } from '../utils/wclRankings.js'
 
 const CLASS_COLORS = {
   'Death Knight': '#c41e3a',
@@ -33,21 +34,6 @@ function parseBadgeColor(pct) {
   if (pct >= 50) return '#1eff00'
   if (pct >= 25) return '#0070dd'
   return '#9d9d9d'
-}
-
-function avgParseFromWCL(wclData) {
-  if (!wclData) return null
-
-  let rankings = (wclData.rankingsHeroic?.rankings ?? []).filter((row) => (row.totalKills ?? 0) > 0)
-  let diff = 'H'
-  if (!rankings.length) {
-    rankings = (wclData.rankingsNormal?.rankings ?? []).filter((row) => (row.totalKills ?? 0) > 0)
-    diff = 'N'
-  }
-  if (!rankings.length) return null
-
-  const avg = rankings.reduce((sum, row) => sum + (row.rankPercent ?? 0), 0) / rankings.length
-  return { pct: Math.round(avg), diff, bossCount: rankings.length }
 }
 
 function formatDate(dateStr) {
@@ -237,7 +223,7 @@ const MemberCard = memo(function MemberCard({
   const memberKey = `${region}:${effectiveRealm}:${member.name}`.toLowerCase()
   const { data, loading: gearLoading, error: gearError, refresh, fetchedAt } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { avatarUrl } = useBlizzardMedia(member.name, effectiveRealm, region)
-  const { data: wclData, loading: wclLoading, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
+  const { data: wclData, loading: wclLoading, error: wclError, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
   const reportUrl = member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey)
   const { dps } = useRaidbotsReport(reportUrl)
 
@@ -245,7 +231,7 @@ const MemberCard = memo(function MemberCard({
     if (data && onDataLoaded) onDataLoaded(member.name, data)
   }, [data, member.name, onDataLoaded])
 
-  const parse = useMemo(() => avgParseFromWCL(wclData), [wclData])
+  const parse = useMemo(() => getAverageWclParse(wclData), [wclData])
 
   useEffect(() => {
     if (parse && onParseLoaded) onParseLoaded(member.name, parse.pct)
@@ -330,8 +316,9 @@ const MemberCard = memo(function MemberCard({
           <div className="guild-member-card__status">
             {gearError && gearError !== 'API not available' && <span className="guild-member-card__error">{gearError}</span>}
             {gearError === 'API not available' && <span className="guild-member-card__muted">API offline</span>}
-            {!gearError && fetchedAt && <span className="guild-member-card__muted">Updated {timeAgo(fetchedAt)}</span>}
-            {!gearError && !fetchedAt && !gearLoading && <span className="guild-member-card__muted">Ready to inspect</span>}
+            {!gearError && wclError && <span className="guild-member-card__error">{wclError}</span>}
+            {!gearError && !wclError && fetchedAt && <span className="guild-member-card__muted">Updated {timeAgo(fetchedAt)}</span>}
+            {!gearError && !wclError && !fetchedAt && !gearLoading && <span className="guild-member-card__muted">Ready to inspect</span>}
           </div>
 
           <button
