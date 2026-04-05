@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getAverageWclParse, getBestWclParse, selectWclDifficulty } from '../src/utils/wclRankings.js'
+import { getAverageWclParse, getBestWclParse, normalizeWclServerSlug, selectWclDifficulty } from '../src/utils/wclRankings.js'
 
 function buildWclData({ mythic = [], heroic = [], normal = [], zoneName = 'Manaforge Omega' } = {}) {
   return {
@@ -89,4 +89,11 @@ test('whooplol regression: mythic-only logs still produce visible parse summarie
   assert.equal(average?.diffLabel, 'Mythic')
   assert.equal(average?.bossCount, 2)
   assert.deepEqual(best, { pct: 74, diff: 'M' })
+})
+
+test('normalizeWclServerSlug converts display realms into WCL slugs', () => {
+  assert.equal(normalizeWclServerSlug('Tarren Mill'), 'tarren-mill')
+  assert.equal(normalizeWclServerSlug("Aerie Peak"), 'aerie-peak')
+  assert.equal(normalizeWclServerSlug("Quel'Thalas"), 'quelthalas')
+  assert.equal(normalizeWclServerSlug('  Twisting   Nether  '), 'twisting-nether')
 })

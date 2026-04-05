@@ -223,7 +223,7 @@ const MemberCard = memo(function MemberCard({
   const memberKey = `${region}:${effectiveRealm}:${member.name}`.toLowerCase()
   const { data, loading: gearLoading, error: gearError, refresh, fetchedAt } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { avatarUrl } = useBlizzardMedia(member.name, effectiveRealm, region)
-  const { data: wclData, loading: wclLoading, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
+  const { data: wclData, loading: wclLoading, error: wclError, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
   const reportUrl = member.reportUrl ?? member.report_url ?? getStoredReportUrl(memberKey)
   const { dps } = useRaidbotsReport(reportUrl)
 
@@ -316,8 +316,9 @@ const MemberCard = memo(function MemberCard({
           <div className="guild-member-card__status">
             {gearError && gearError !== 'API not available' && <span className="guild-member-card__error">{gearError}</span>}
             {gearError === 'API not available' && <span className="guild-member-card__muted">API offline</span>}
-            {!gearError && fetchedAt && <span className="guild-member-card__muted">Updated {timeAgo(fetchedAt)}</span>}
-            {!gearError && !fetchedAt && !gearLoading && <span className="guild-member-card__muted">Ready to inspect</span>}
+            {!gearError && wclError && <span className="guild-member-card__error">{wclError}</span>}
+            {!gearError && !wclError && fetchedAt && <span className="guild-member-card__muted">Updated {timeAgo(fetchedAt)}</span>}
+            {!gearError && !wclError && !fetchedAt && !gearLoading && <span className="guild-member-card__muted">Ready to inspect</span>}
           </div>
 
           <button

@@ -443,7 +443,7 @@ function DroptimizerSection({ member, region, realm, onUpdateMember }) {
 
 // ── WclSection ────────────────────────────────────────────────────────────────
 
-function WclSection({ wclData, loading, fetchedAt }) {
+function WclSection({ wclData, loading, fetchedAt, error }) {
   const [expanded, setExpanded] = useState(false)
 
   const parseSummary = useMemo(() => getAverageWclParse(wclData), [wclData])
@@ -459,12 +459,13 @@ function WclSection({ wclData, loading, fetchedAt }) {
         {loading && <span style={muted}>Fetching parses…</span>}
         {!loading && zoneName && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{zoneName} · {diff}</span>}
         {!loading && fetchedAt && <span style={fetchedAtStyle}>{timeAgo(fetchedAt)}</span>}
+        {!loading && error && <span style={{ ...muted, color: '#ff7070' }}>{error}</span>}
         {!loading && avgPct !== null && (
           <span style={{ fontSize: '0.82rem', fontWeight: 700, color: parseBadgeColor(avgPct), border: `1px solid ${parseBadgeColor(avgPct)}`, borderRadius: 4, padding: '0.1rem 0.45rem' }}>
             avg {avgPct}%
           </span>
         )}
-        {!loading && avgPct === null && wclData && <span style={muted}>No parse data found.</span>}
+        {!loading && !error && avgPct === null && wclData && <span style={muted}>No parse data found.</span>}
         {!loading && bosses.length > 0 && (
           <button
             onClick={() => setExpanded(e => !e)}
@@ -539,7 +540,7 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
 
   const { data: bliz, loading: gearLoading, error: gearError, fetchedAt: blizFetchedAt, refresh: refreshBliz } = useBlizzardAPI(member.name, effectiveRealm, region)
   const { avatarUrl }  = useBlizzardMedia(member.name, effectiveRealm, region)
-  const { data: wcl, loading: wclLoading, fetchedAt: wclFetchedAt, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
+  const { data: wcl, loading: wclLoading, error: wclError, fetchedAt: wclFetchedAt, refresh: refreshWCL } = useCharacterParses(member.name, effectiveRealm, region)
 
   const refreshAll = () => { refreshBliz(); refreshWCL() }
   const refreshing = gearLoading || wclLoading
@@ -637,7 +638,7 @@ export default function CharacterView({ member, guild, onBack, onUpdateMember, w
       <DroptimizerSection member={member} region={region} realm={effectiveRealm} onUpdateMember={onUpdateMember} />
 
       {/* Warcraft Logs — per-boss parses */}
-      <WclSection wclData={wcl} loading={wclLoading} fetchedAt={wclFetchedAt} />
+      <WclSection wclData={wcl} loading={wclLoading} fetchedAt={wclFetchedAt} error={wclError} />
 
       {/* Progression history — iLvl + sim DPS over time */}
       <ProgressionCharts characterName={member.name} />

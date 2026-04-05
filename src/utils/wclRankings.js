@@ -4,6 +4,14 @@ const DIFFICULTY_ORDER = [
   { key: 'rankingsNormal', short: 'N', label: 'Normal' },
 ]
 
+export function normalizeWclServerSlug(realm = '') {
+  return String(realm)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/'/g, '')
+}
+
 function populatedRankings(bucket) {
   return (bucket?.rankings ?? []).filter((row) => (row.totalKills ?? 0) > 0)
 }
