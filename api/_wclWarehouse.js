@@ -617,7 +617,7 @@ export function buildGuildDashboardPayload({
               class: row.class_name ?? rosterRows.find((member) => member.actor_key === row.actor_key)?.class ?? null,
               spec: row.spec_name ?? rosterRows.find((member) => member.actor_key === row.actor_key)?.spec ?? null,
               encounter_name: fight?.encounter_name ?? null,
-              parse_pct: row.parse_percent,
+              parse_pct: Math.round(row.parse_percent),
               raid_night_date: latestRaidDate,
               wcl_url: row.report_code ? `https://www.warcraftlogs.com/reports/${row.report_code}` : null,
             }
@@ -945,21 +945,4 @@ export async function importWclWarehouseReport({ supabase, reportInput }) {
     if (updateError) throw updateError
     throw error
   }
-}
-
-export function listWclImportsFromRows(rows = []) {
-  return rows
-    .map((row) => ({
-      reportCode: row.report_code ?? row.code ?? null,
-      sourceUrl: row.source_url ?? null,
-      title: row.title ?? null,
-      raidNightDate: row.raid_night_date ?? null,
-      zoneName: row.zone_name ?? null,
-      importStatus: row.import_status ?? row.status ?? null,
-      lastError: row.last_error ?? null,
-      updatedAt: row.updated_at ?? null,
-      importedAt: row.imported_at ?? null,
-    }))
-    .filter((row) => row.reportCode)
-    .sort((left, right) => String(right.updatedAt ?? right.importedAt ?? '').localeCompare(String(left.updatedAt ?? left.importedAt ?? '')))
 }

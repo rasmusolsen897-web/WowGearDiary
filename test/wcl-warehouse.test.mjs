@@ -142,10 +142,10 @@ test('buildGuildDashboardPayload aggregates nightly parse trends and roster summ
       { report_code: 'B', fight_id: 3, encounter_name: 'Boss Two', kill: true, boss_percentage: 100, fight_percentage: 100, raid_night_date: '2026-04-10' },
     ],
     fightPlayers: [
-      { report_code: 'A', fight_id: 1, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: 73.2 },
-      { report_code: 'A', fight_id: 1, actor_key: 'eu:tarren-mill:mufuzu', actor_name: 'Mufuzu', parse_percent: 80.1 },
-      { report_code: 'A', fight_id: 2, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: 95.4 },
-      { report_code: 'B', fight_id: 3, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: 91.8 },
+      { report_code: 'A', fight_id: 1, raid_night_date: '2026-04-03', kill: false, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: 73.2 },
+      { report_code: 'A', fight_id: 1, raid_night_date: '2026-04-03', kill: false, actor_key: 'eu:tarren-mill:mufuzu', actor_name: 'Mufuzu', parse_percent: 80.1 },
+      { report_code: 'A', fight_id: 2, raid_night_date: '2026-04-03', kill: true, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: 95.4 },
+      { report_code: 'B', fight_id: 3, raid_night_date: '2026-04-10', kill: true, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: 91.8 },
     ],
     roster: [
       { name: 'Whooplol', is_main: true, role: 'dps', class: 'Warrior', spec: 'Arms', avg_ilvl: 712, actor_key: 'eu:tarren-mill:whooplol' },
@@ -161,7 +161,7 @@ test('buildGuildDashboardPayload aggregates nightly parse trends and roster summ
   })
 
   assert.deepEqual(payload.charts.parseTrend, [
-    { raid_night_date: '2026-04-03', avg_parse_pct: 79 },
+    { raid_night_date: '2026-04-03', avg_parse_pct: 95 },
     { raid_night_date: '2026-04-10', avg_parse_pct: 92 },
   ])
   assert.deepEqual(payload.charts.ilvlTrend, [
@@ -169,8 +169,8 @@ test('buildGuildDashboardPayload aggregates nightly parse trends and roster summ
     { snapped_at: '2026-04-10', avg_ilvl: 711.5, member_count: 2 },
   ])
   assert.equal(payload.leaderboard[0].name, 'Whooplol')
-  assert.equal(payload.leaderboard[0].parse_pct, 95.4)
-  assert.equal(payload.roster[0].last_raid_parse_pct, 95.4)
+  assert.equal(payload.leaderboard[0].parse_pct, 92)
+  assert.equal(payload.roster[0].last_raid_parse_pct, 92)
   assert.equal(payload.roster[0].parse_trend.length, 2)
   assert.equal(payload.attendance.length, 2)
   assert.equal(payload.attendance[0].nights.length, 6)
