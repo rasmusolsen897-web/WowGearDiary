@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { buildCharacterStorageKey } from '../utils/characterIdentity.js'
 
 const CACHE_TTL = 60 * 60 * 1000 // 1 hour
 
@@ -114,4 +115,8 @@ export function setStoredDroptimizerUrl(memberKey, url) {
     if (url) localStorage.setItem(`droptimizer-url:${memberKey}`, url)
     else      localStorage.removeItem(`droptimizer-url:${memberKey}`)
   } catch {}
+}
+
+export function buildDroptimizerMemberKey(region, realm, name) {
+  return buildCharacterStorageKey(region, realm, name)
 }

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { buildCharacterStorageKey } from '../utils/characterIdentity.js'
 
 const CACHE_TTL = 15 * 60 * 1000 // 15 minutes
 
 function cacheKey(region, realm, name) {
-  return `blizzard:${region}:${realm}:${name}`.toLowerCase()
+  return `blizzard:${buildCharacterStorageKey(region, realm, name)}`
 }
 
 function readCache(key) {
@@ -108,7 +109,7 @@ export function useBlizzardMedia(name, realm, region = 'eu') {
   useEffect(() => {
     if (!name || !realm) return
 
-    const key = `blizzard-media:${region}:${realm}:${name}`.toLowerCase()
+    const key = `blizzard-media:${buildCharacterStorageKey(region, realm, name)}`
     const cached = readCache(key)
     if (cached) { setAvatarUrl(cached.data.avatarUrl); return }
 

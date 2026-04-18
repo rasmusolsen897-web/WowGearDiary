@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { normalizeIdentityName } from '../src/utils/characterIdentity.js'
 
 export const AUTOMATION_TIMEZONE = 'Europe/Copenhagen'
 
@@ -24,7 +25,7 @@ function firstQueryValue(value) {
 }
 
 export function normalizeName(value) {
-  return String(value ?? '').trim().toLowerCase()
+  return normalizeIdentityName(value)
 }
 
 export function normalizeScenario(value) {

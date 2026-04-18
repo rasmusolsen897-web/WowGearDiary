@@ -320,6 +320,269 @@ select.filter-select option {
   padding: 1.25rem;
   margin-bottom: 1.25rem;
 }
+
+.overview-card {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 1rem;
+  align-items: stretch;
+  margin: 0.9rem 0 1rem;
+}
+
+.heroic-progress-card {
+  min-height: 100%;
+}
+
+.heroic-progress-header,
+.progression-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.progression-card-copy {
+  min-width: 0;
+}
+
+.progression-card-kicker {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.progression-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--frost-blue);
+  margin-top: 0.15rem;
+}
+
+.progression-card-subtitle {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.progression-toggle-group {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.progression-toggle {
+  min-width: 74px;
+  justify-content: center;
+}
+
+.progression-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.progression-legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.progression-legend-value {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.history-chart-shell {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
+    radial-gradient(circle at top left, rgba(105, 204, 255, 0.08), transparent 40%);
+}
+
+.history-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 220px;
+}
+
+.history-axis-line {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.history-grid-line {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.history-axis-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+
+.history-axis-label-y {
+  dominant-baseline: middle;
+}
+
+.history-axis-label-x {
+  dominant-baseline: hanging;
+}
+
+.history-series {
+  opacity: 0.95;
+}
+
+.history-point {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.history-point:hover {
+  opacity: 1;
+}
+
+.history-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  background: linear-gradient(180deg, rgba(13, 13, 24, 0.1), rgba(13, 13, 24, 0.36));
+  pointer-events: none;
+}
+
+.history-empty-label {
+  fill: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.history-chart-footer {
+  min-height: 1.1em;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.heroic-progress-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem 0.8rem;
+  flex-wrap: wrap;
+}
+
+.heroic-progress-count {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.heroic-progress-threshold,
+.heroic-progress-loading,
+.heroic-progress-footer,
+.heroic-progress-empty {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.heroic-progress-loading {
+  color: var(--frost-blue);
+}
+
+.heroic-progress-raid-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.heroic-progress-raid-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 140px) minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.heroic-progress-raid-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--frost-blue);
+}
+
+.heroic-progress-raid-meta {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.heroic-progress-bosses {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.heroic-boss-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.heroic-boss-chip.missing {
+  color: var(--warning);
+  border-color: rgba(255, 215, 0, 0.35);
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.heroic-boss-chip.progressed {
+  color: var(--success);
+  border-color: rgba(76, 255, 145, 0.35);
+  background: rgba(76, 255, 145, 0.08);
+}
+
+.heroic-progress-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.heroic-progress-footer-row {
+  display: block;
+}
 .wcl-header {
   display: flex;
   align-items: center;
@@ -652,7 +915,13 @@ select.filter-select option {
   gap: 16px;
 }
 @media (max-width: 700px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
   .gameplan-grid { grid-template-columns: 1fr; }
+  .heroic-progress-raid-row {
+    grid-template-columns: 1fr;
+  }
 }
 .gameplan-card {
   padding: 16px;
@@ -701,6 +970,17 @@ select.filter-select option {
 .filter-group {
   display: flex;
   gap: 4px;
+}
+.filter-group-label {
+  align-items: center;
+}
+.filter-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-right: 2px;
 }
 .filter-divider {
   width: 1px;
@@ -754,6 +1034,16 @@ select.filter-select option {
 .stat-pill-2pc    { border-color: var(--epic-purple);      color: var(--epic-purple); }
 .stat-pill-4pc    { border-color: var(--legendary-orange); color: var(--legendary-orange); }
 .stat-pill-weapon { border-color: var(--frost-blue);       color: var(--frost-blue); }
+
+.filter-bar .btn-pill {
+  height: 30px;
+}
+
+.filter-bar .btn-pill.active {
+  background: rgba(105, 204, 255, 0.15);
+  border-color: var(--frost-blue);
+  color: var(--frost-blue);
+}
 
 /* ---- Tier / crafted weapon badges (extend .badge) ---- */
 .badge-2pc     { background: rgba(163,53,238,0.2);   color: var(--epic-purple);      border: 1px solid rgba(163,53,238,0.5); }

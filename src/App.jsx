@@ -4,6 +4,13 @@ import GuildHeader from './components/GuildHeader.jsx'
 import GuildOverview from './components/GuildOverview.jsx'
 import CharacterView from './components/CharacterView.jsx'
 import Settings from './components/Settings.jsx'
+import { identityNamesEqual, normalizeIdentityName } from './utils/characterIdentity.js'
+import {
+  findMemberByName,
+  pruneGuildMembers,
+  purgeRemovedCharacterStorage,
+  REMOVED_MEMBER_NAMES,
+} from './utils/rosterSync.js'
 
 const GUILD_STORAGE_KEY  = 'wow-gear-diary:guild'
 const TOKEN_STORAGE_KEY  = 'wow-gear-diary:write-token'
@@ -15,7 +22,10 @@ function sanitizeMember(member) {
 }
 
 function sanitizeMembers(members) {
-  return Array.isArray(members) ? members.map(sanitizeMember) : []
+  return pruneGuildMembers(
+    Array.isArray(members) ? members.map(sanitizeMember) : [],
+    { removedNames: REMOVED_MEMBER_NAMES },
+  )
 }
 
 function sanitizeGuild(guild) {
@@ -32,8 +42,8 @@ function loadGuild() {
     if (stored) {
       const parsed = sanitizeGuild(JSON.parse(stored))
       // Merge: add any new members from data.json that aren't in localStorage yet
-      const storedNames = new Set(parsed.members.map(m => m.name.toLowerCase()))
-      const newMembers  = sanitizeMembers(data.guild.members).filter(m => !storedNames.has(m.name.toLowerCase()))
+      const storedNames = new Set(parsed.members.map(m => normalizeIdentityName(m.name)))
+      const newMembers  = sanitizeMembers(data.guild.members).filter(m => !storedNames.has(normalizeIdentityName(m.name)))
       return { ...parsed, members: [...parsed.members, ...newMembers] }
     }
   } catch {}
@@ -132,7 +142,12 @@ export default function App() {
       const updated = sanitizeGuild(
         typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue,
       )
+      const removedNames = prev.members
+        .filter(member => !findMemberByName(updated.members, member.name))
+        .map(member => member.name)
+
       saveGuild(updated)
+      purgeRemovedCharacterStorage(removedNames, updated)
       const token = writeTokenRef.current
       if (token) {
         setSyncStatus('syncing')
@@ -164,7 +179,7 @@ export default function App() {
   function handleGuildChange(updated) {
     setGuild(updated)
     if (selectedMember) {
-      const refreshed = updated.members.find(m => m.name.toLowerCase() === selectedMember.name.toLowerCase())
+      const refreshed = findMemberByName(updated.members, selectedMember.name)
       if (refreshed) setSelectedMember(refreshed)
     }
   }
@@ -174,10 +189,10 @@ export default function App() {
     setGuild(prev => ({
       ...prev,
       members: prev.members.map(m =>
-        m.name.toLowerCase() === name.toLowerCase() ? { ...m, ...patch } : m
+        identityNamesEqual(m.name, name) ? { ...m, ...patch } : m
       ),
     }))
-    if (selectedMember?.name.toLowerCase() === name.toLowerCase()) {
+    if (identityNamesEqual(selectedMember?.name, name)) {
       setSelectedMember(prev => ({ ...prev, ...patch }))
     }
   }

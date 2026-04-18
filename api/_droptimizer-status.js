@@ -1,7 +1,8 @@
 import { compareQueuedCharacters, RUN_STATUSES } from './_droptimizer-automation.js'
+import { normalizeIdentityName } from '../src/utils/characterIdentity.js'
 
 function normalizedName(value) {
-  return String(value ?? '').trim().toLowerCase()
+  return normalizeIdentityName(value)
 }
 
 export function buildCharacterLookup(characters = []) {
