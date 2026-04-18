@@ -2,6 +2,7 @@ node_modules/
 dist/
 .DS_Store
 *.local
+.vercel-dev*.log
 # MCP config may contain auth tokens — keep out of git
 .mcp.json
 
