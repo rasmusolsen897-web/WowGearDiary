@@ -42,7 +42,7 @@ async function loadGuild() {
   }
 }
 
-async function loadDashboardRows(supabase) {
+async function loadDashboardRows(supabase, guild = null) {
   const [charactersRes, ilvlRes, reportsRes, fightsRes, fightPlayersRes, lootRes] = await Promise.all([
     supabase.from('characters').select('name, class, spec, role, is_main, realm'),
     supabase.from('ilvl_snapshots').select('character_name, avg_ilvl, snapped_at'),
@@ -58,7 +58,13 @@ async function loadDashboardRows(supabase) {
 
   const latestSnapshots = latestSnapshotsByCharacter(ilvlRes.data ?? [])
 
-  const roster = (charactersRes.data ?? []).map((character) => {
+  const rosterSource = (charactersRes.data ?? []).length
+    ? (charactersRes.data ?? [])
+    : Array.isArray(guild?.members)
+      ? guild.members
+      : []
+
+  const roster = rosterSource.map((character) => {
     const latest = latestSnapshots.get(character.name)
     return {
       ...normalizeMember(character),
@@ -90,7 +96,7 @@ export default async function handler(req, res) {
 
   try {
     const supabase = getSupabase()
-    const rows = await loadDashboardRows(supabase)
+    const rows = await loadDashboardRows(supabase, guild)
     const payload = buildGuildDashboardPayload({
       guild,
       ...rows,

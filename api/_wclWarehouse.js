@@ -302,12 +302,12 @@ function buildProgressRows(reportCode, fights = []) {
   const byEncounter = new Map()
   for (const fight of fights) {
     const encounterId = fight?.encounter_id ?? null
-    if (encounterId == null) continue
-    const key = `${encounterId}:${normalizeText(fight.encounter_name)}`
+    const encounterName = normalizeText(fight.encounter_name) || 'Unknown'
+    const key = `${encounterId ?? encounterName}:${encounterName}`
     const existing = byEncounter.get(key) ?? {
       report_code: reportCode,
       encounter_id: encounterId,
-      encounter_name: normalizeText(fight.encounter_name) || 'Unknown',
+      encounter_name: encounterName,
       pulls: 0,
       kills: 0,
       best_wipe_percent: null,
@@ -365,12 +365,31 @@ export function buildWclWarehouseDocument(reportCode, reportNode, options = {}) 
     raidNightDate,
   )
   const lootEvents = Array.isArray(options.lootEvents)
-    ? options.lootEvents.map((event) => normalizeLootEvent(event, {
-      reportCode,
-      report,
-      fight: fights.find((fight) => fight?.id === (event?.fightId ?? event?.fight_id)) ?? null,
-      occurredAt: event?.occurredAt ?? event?.occurred_at ?? null,
-    })).filter(Boolean)
+    ? options.lootEvents.map((event) => {
+      if (event?.event_uid) {
+        return {
+          event_uid: normalizeText(event.event_uid),
+          report_code: event.report_code ?? reportCode,
+          fight_id: event.fight_id ?? event.fightId ?? null,
+          actor_key: event.actor_key ?? null,
+          actor_name: normalizeText(event.actor_name) || null,
+          item_id: event.item_id ?? null,
+          item_name: normalizeText(event.item_name) || null,
+          item_level: event.item_level ?? null,
+          quality: event.quality ?? null,
+          encounter_name: normalizeText(event.encounter_name) || null,
+          occurred_at: event.occurred_at ?? null,
+          is_tier: Boolean(event.is_tier),
+        }
+      }
+
+      return normalizeLootEvent(event, {
+        reportCode,
+        report,
+        fight: fights.find((fight) => fight?.id === (event?.fightId ?? event?.fight_id)) ?? null,
+        occurredAt: event?.occurredAt ?? event?.occurred_at ?? null,
+      })
+    }).filter(Boolean)
     : []
 
   const reportRow = {
@@ -380,8 +399,15 @@ export function buildWclWarehouseDocument(reportCode, reportNode, options = {}) 
     visibility: normalizeText(report.visibility) || null,
     region: normalizeRegion(report.region?.name ?? report.region?.code ?? report.region),
     guild_name: normalizeText(report.guild?.name) || null,
-    guild_server_slug: normalizeWclRealmSlug(report.guild?.server ?? report.guild?.realm ?? report.guild?.name),
-    guild_server_region: normalizeRegion(report.guild?.region ?? report.region?.code ?? report.region?.name),
+    guild_server_slug: normalizeWclRealmSlug(report.guild?.server?.slug ?? report.guild?.server ?? report.guild?.realm ?? report.guild?.name),
+    guild_server_region: normalizeRegion(
+      report.guild?.server?.region?.slug
+      ?? report.guild?.server?.region?.compactName
+      ?? report.guild?.server?.region
+      ?? report.region?.slug
+      ?? report.region?.compactName
+      ?? report.region?.name,
+    ),
     owner_name: normalizeText(report.owner?.name) || null,
     zone_id: report.zone?.id ?? null,
     zone_name: normalizeText(report.zone?.name) || null,
@@ -481,7 +507,7 @@ function normalizeFightPlayerRows(rows = []) {
     parse_percent: row.parse_percent ?? null,
     dps: row.dps ?? null,
     item_level: row.item_level ?? null,
-    kill: Boolean(row.kill),
+    kill: typeof row.kill === 'boolean' ? row.kill : null,
     raid_night_date: row.raid_night_date ?? null,
   }))
 }
@@ -515,15 +541,15 @@ function sortByUpdatedAtDesc(left, right) {
 
 export function listWclImportsFromRows(rows = []) {
   return normalizeReportRows(rows).sort(sortByUpdatedAtDesc).map((row) => ({
-    reportCode: row.report_code,
-    sourceUrl: row.source_url,
+    report_code: row.report_code,
+    source_url: row.source_url,
     title: row.title,
-    raidNightDate: row.raid_night_date,
-    zoneName: row.zone_name,
-    importStatus: row.import_status,
-    lastError: row.last_error,
-    updatedAt: row.updated_at,
-    importedAt: row.imported_at,
+    raid_night_date: row.raid_night_date,
+    zone_name: row.zone_name,
+    import_status: row.import_status,
+    last_error: row.last_error,
+    updated_at: row.updated_at,
+    imported_at: row.imported_at,
   }))
 }
 
@@ -553,9 +579,19 @@ export function buildGuildDashboardPayload({
   const normalizedReports = normalizeReportRows(reports)
   const readyReports = normalizedReports.filter((report) => report.import_status === 'ready')
   const reportByCode = new Map(readyReports.map((report) => [report.report_code, report]))
-  const fightRows = normalizeFightRows(fights)
+  const fightRows = normalizeFightRows(fights).filter((fight) => reportByCode.has(fight.report_code))
+  const fightByKey = new Map(fightRows.map((fight) => [`${fight.report_code}:${fight.fight_id}`, fight]))
   const fightPlayerRows = normalizeFightPlayerRows(fightPlayers)
-  const lootRows = normalizeLootRows(lootEvents)
+    .filter((row) => reportByCode.has(row.report_code))
+    .map((row) => {
+      const fight = fightByKey.get(`${row.report_code}:${row.fight_id}`)
+      return {
+        ...row,
+        kill: typeof row.kill === 'boolean' ? row.kill : Boolean(fight?.kill),
+        raid_night_date: row.raid_night_date ?? fight?.raid_night_date ?? reportByCode.get(row.report_code)?.raid_night_date ?? null,
+      }
+    })
+  const lootRows = normalizeLootRows(lootEvents).filter((row) => reportByCode.has(row.report_code))
   const rosterRows = (Array.isArray(roster) ? roster : []).map((row) => ({
     name: normalizeText(row.name) || null,
     class: row.class ?? row.class_name ?? null,
@@ -573,9 +609,12 @@ export function buildGuildDashboardPayload({
   }))
 
   const raidNightDates = [...new Set(readyReports.map((report) => report.raid_night_date).filter(Boolean))].sort()
-  const fightById = new Map(fightRows.map((fight) => [fight.fight_id, fight]))
+  const parseTrendDates = raidNightDates.slice(-12)
+  const attendanceDates = raidNightDates.slice(-6)
+  const paddedAttendanceDates = [...attendanceDates]
+  while (paddedAttendanceDates.length < 6) paddedAttendanceDates.unshift(null)
 
-  const parseTrend = raidNightDates.map((raidNightDate) => {
+  const parseTrend = parseTrendDates.map((raidNightDate) => {
     const reportCodes = readyReports.filter((report) => report.raid_night_date === raidNightDate).map((report) => report.report_code)
     const parses = fightPlayerRows
       .filter((row) => row.raid_night_date === raidNightDate && row.kill && row.parse_percent != null && reportCodes.includes(row.report_code))
@@ -598,7 +637,7 @@ export function buildGuildDashboardPayload({
       snapped_at: row.snapped_at,
       avg_ilvl: row.avg_ilvl == null ? null : Math.round(row.avg_ilvl * 10) / 10,
       member_count: row.member_count,
-    }))
+  }))
 
   const latestRaidDate = raidNightDates.at(-1) ?? null
   const bossRows = buildProgressRows('aggregate', fightRows)
@@ -609,7 +648,7 @@ export function buildGuildDashboardPayload({
         .reduce((acc, row) => {
           const current = acc[row.actor_key]
           if (!current || row.parse_percent > current.parse_pct) {
-            const fight = fightById.get(row.fight_id)
+            const fight = fightByKey.get(`${row.report_code}:${row.fight_id}`)
             acc[row.actor_key] = {
               actor_key: row.actor_key,
               name: row.actor_name ?? row.actor_key,
@@ -617,7 +656,7 @@ export function buildGuildDashboardPayload({
               class: row.class_name ?? rosterRows.find((member) => member.actor_key === row.actor_key)?.class ?? null,
               spec: row.spec_name ?? rosterRows.find((member) => member.actor_key === row.actor_key)?.spec ?? null,
               encounter_name: fight?.encounter_name ?? null,
-              parse_pct: Math.round(row.parse_percent),
+              parse_pct: row.parse_percent,
               raid_night_date: latestRaidDate,
               wcl_url: row.report_code ? `https://www.warcraftlogs.com/reports/${row.report_code}` : null,
             }
@@ -627,11 +666,11 @@ export function buildGuildDashboardPayload({
     ).sort((left, right) => right.parse_pct - left.parse_pct || left.name.localeCompare(right.name))
     : []
 
-  const attendanceDates = raidNightDates.slice(-6)
   const attendance = rosterRows
     .filter((member) => member.is_main)
     .map((member) => {
-      const nights = attendanceDates.map((raidNightDate) => {
+      const nights = paddedAttendanceDates.map((raidNightDate) => {
+        if (!raidNightDate) return false
         const reportCodes = readyReports.filter((report) => report.raid_night_date === raidNightDate).map((report) => report.report_code)
         return fightPlayerRows.some((row) => row.actor_key === member.actor_key && row.raid_night_date === raidNightDate && reportCodes.includes(row.report_code))
       })
@@ -688,7 +727,7 @@ export function buildGuildDashboardPayload({
       ilvlTrend,
     },
     progress: {
-      zone_name: readyReports.at(-1)?.zone_name ?? guild?.zone ?? null,
+      zone_name: readyReports.find((report) => report.raid_night_date === latestRaidDate)?.zone_name ?? guild?.zone ?? null,
       progressed_boss_count: bossRows.filter((row) => row.kills > 0).length,
       boss_count: bossRows.length,
       delta_this_week: bossRows.filter((row) => row.kills > 0).length,
@@ -734,9 +773,9 @@ const REPORT_IMPORT_QUERY = /* GraphQL */ `
         endTime
         revision
         segments
-        region { code name }
+        region { id name slug compactName }
         zone { id name }
-        guild { id name server region }
+        guild { id name server { id name slug normalizedName region { id name slug compactName } } }
         owner { id name }
         masterData(translate: true) {
           actors(type: "Player") {
@@ -890,7 +929,7 @@ export async function persistWclWarehouseDocument(supabase, document) {
   const { error: reportError } = await supabase.from('wcl_reports').upsert(reportRow, { onConflict: 'report_code' })
   if (reportError) throw reportError
 
-  await replaceRowsByReportCode(supabase, 'wcl_fights', reportRow.report_code, buildFightRows(reportRow.report_code, document.fights))
+  await replaceRowsByReportCode(supabase, 'wcl_fights', reportRow.report_code, normalizeFightRows(document.fights))
   await replaceRowsByReportCode(supabase, 'wcl_fight_players', reportRow.report_code, normalizeFightPlayerRows(document.fightPlayers))
   await replaceRowsByReportCode(supabase, 'wcl_loot_events', reportRow.report_code, normalizeLootRows(document.lootEvents))
 
