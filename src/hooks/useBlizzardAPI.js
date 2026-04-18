@@ -7,6 +7,10 @@ function cacheKey(region, realm, name) {
   return `blizzard:${buildCharacterStorageKey(region, realm, name)}`
 }
 
+function raidsCacheKey(region, realm, name) {
+  return `blizzard-raids:${buildCharacterStorageKey(region, realm, name)}`
+}
+
 function readCache(key) {
   try {
     const raw = localStorage.getItem(key)
@@ -134,4 +138,63 @@ export function useBlizzardMedia(name, realm, region = 'eu') {
   }, [name, realm, region])
 
   return { avatarUrl, loading }
+}
+
+export function useBlizzardRaids(name, realm, region = 'eu') {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [tick, setTick] = useState(0)
+  const [fetchedAt, setFetchedAt] = useState(null)
+
+  useEffect(() => {
+    if (!name || !realm) return
+
+    const key = raidsCacheKey(region, realm, name)
+    const cached = readCache(key)
+    if (cached) {
+      setData(cached.data)
+      setFetchedAt(cached.ts)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+
+    fetch(`/api/blizzard?action=raids&region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(name)}`)
+      .then(async (res) => {
+        if (res.status === 404) throw new Error('API not available')
+        const ct = res.headers.get('content-type') ?? ''
+        if (!ct.includes('application/json')) throw new Error('API not available')
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error ?? `HTTP ${res.status}`)
+        }
+        return res.json()
+      })
+      .then((json) => {
+        if (cancelled) return
+        writeCache(key, json)
+        setData(json)
+        setFetchedAt(Date.now())
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setError(err.message)
+        setData(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [name, realm, region, tick])
+
+  const refresh = () => {
+    try { localStorage.removeItem(raidsCacheKey(region, realm, name)) } catch {}
+    setTick((value) => value + 1)
+  }
+
+  return { data, loading, error, refresh, fetchedAt }
 }
