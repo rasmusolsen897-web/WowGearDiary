@@ -1,0 +1,70 @@
+> [debug] [2026-04-18T22:03:56.550Z] Found config in file "C:\Users\Rasmus\WowGearDiary\vercel.json"
+> [debug] [2026-04-18T22:03:56.552Z] Vercel CLI 51.7.0
+> [debug] [2026-04-18T22:03:56.559Z] Agent/TTY/nonInteractive: isAgent=true agentName=codex stdin.isTTY=undefined --non-interactive=false explicitFalse=false => nonInteractive=true
+> [debug] [2026-04-18T22:03:56.560Z] user supplied known subcommand: "dev"
+> [debug] [2026-04-18T22:03:56.801Z] Spinner invoked (Retrieving project…) with a 1000ms delay
+> [debug] [2026-04-18T22:03:56.802Z] Valid access token, skipping token refresh.
+> [debug] [2026-04-18T22:03:56.815Z] #1 → GET https://api.vercel.com/teams/team_XJ4Yvue8Hesi2SyQDvEppeZT?teamId=team_XJ4Yvue8Hesi2SyQDvEppeZT
+> [debug] [2026-04-18T22:03:56.816Z] #2 → GET https://api.vercel.com/v9/projects/prj_4w3J8wfkP6JeqcKCmLNhRB5GRg3q?teamId=team_XJ4Yvue8Hesi2SyQDvEppeZT
+> [debug] [2026-04-18T22:03:57.353Z] #1 ← 200 OK: sfo1::mv24m-1776549836380-30a1d2653bc1 [538ms]
+> [debug] [2026-04-18T22:03:57.360Z] #2 ← 200 OK: sfo1::mjftw-1776549836374-a354132197ea [544ms]
+> [debug] [2026-04-18T22:03:57.362Z] Fetching Environment Variables of prj_4w3J8wfkP6JeqcKCmLNhRB5GRg3q and target undefined
+> [debug] [2026-04-18T22:03:57.363Z] #3 → GET https://api.vercel.com/v3/env/pull/prj_4w3J8wfkP6JeqcKCmLNhRB5GRg3q?source=vercel-cli%3Adev&teamId=team_XJ4Yvue8Hesi2SyQDvEppeZT
+> [debug] [2026-04-18T22:03:57.602Z] #3 ← 200 OK: sfo1::bfnrj-1776549836594-79c284da961d [239ms]
+> [debug] [2026-04-18T22:03:57.607Z] VERCEL_OIDC_TOKEN expires in 43198s; refreshing in 42298s
+> [debug] [2026-04-18T22:03:57.613Z] Reading `package.json` file
+> [debug] [2026-04-18T22:03:57.613Z] Reading `vercel.json` file
+> [debug] [2026-04-18T22:03:57.634Z] Locating files C:\Users\Rasmus\WowGearDiary
+> [debug] [2026-04-18T22:03:57.636Z] Ignoring C:\Users\Rasmus\WowGearDiary\.env.local
+> [debug] [2026-04-18T22:03:57.636Z] Ignoring C:\Users\Rasmus\WowGearDiary\.git
+> [debug] [2026-04-18T22:03:57.636Z] Ignoring C:\Users\Rasmus\WowGearDiary\.gitignore
+> [debug] [2026-04-18T22:03:57.636Z] Ignoring C:\Users\Rasmus\WowGearDiary\.vercel
+> [debug] [2026-04-18T22:03:57.637Z] Ignoring C:\Users\Rasmus\WowGearDiary\node_modules
+> [debug] [2026-04-18T22:03:57.638Z] Ignoring C:\Users\Rasmus\WowGearDiary\.swc\.gitignore
+> [debug] [2026-04-18T22:03:57.640Z] Ignoring C:\Users\Rasmus\WowGearDiary\.claude\worktrees\agent-aab77d92\.git
+> [debug] [2026-04-18T22:03:57.641Z] Ignoring C:\Users\Rasmus\WowGearDiary\.claude\worktrees\agent-aab77d92\.gitignore
+> [debug] [2026-04-18T22:03:57.641Z] Ignoring C:\Users\Rasmus\WowGearDiary\.claude\worktrees\agent-a9a9b173\.git
+> [debug] [2026-04-18T22:03:57.641Z] Ignoring C:\Users\Rasmus\WowGearDiary\.claude\worktrees\agent-a9a9b173\.gitignore
+> [debug] [2026-04-18T22:03:57.642Z] Locating files C:\Users\Rasmus\WowGearDiary [8ms]
+> [debug] [2026-04-18T22:03:57.662Z] Locating files C:\Users\Rasmus\WowGearDiary
+> [debug] [2026-04-18T22:03:57.663Z] Ignoring C:\Users\Rasmus\WowGearDiary\.env.local
+> [debug] [2026-04-18T22:03:57.663Z] Ignoring C:\Users\Rasmus\WowGearDiary\.git
+> [debug] [2026-04-18T22:03:57.663Z] Ignoring C:\Users\Rasmus\WowGearDiary\.gitignore
+> [debug] [2026-04-18T22:03:57.664Z] Ignoring C:\Users\Rasmus\WowGearDiary\.vercel
+> [debug] [2026-04-18T22:03:57.664Z] Ignoring C:\Users\Rasmus\WowGearDiary\node_modules
+> [debug] [2026-04-18T22:03:57.665Z] Ignoring C:\Users\Rasmus\WowGearDiary\.swc\.gitignore
+> [debug] [2026-04-18T22:03:57.668Z] Ignoring C:\Users\Rasmus\WowGearDiary\.claude\worktrees\agent-a9a9b173\.git
+> [debug] [2026-04-18T22:03:57.668Z] Ignoring C:\Users\Rasmus\WowGearDiary\.claude\worktrees\agent-a9a9b173\.gitignore
+> [debug] [2026-04-18T22:03:57.668Z] Ignoring C:\Users\Rasmus\WowGearDiary\.claude\worktrees\agent-aab77d92\.git
+> [debug] [2026-04-18T22:03:57.668Z] Ignoring C:\Users\Rasmus\WowGearDiary\.claude\worktrees\agent-aab77d92\.gitignore
+> [debug] [2026-04-18T22:03:57.670Z] Locating files C:\Users\Rasmus\WowGearDiary [7ms]
+> [debug] [2026-04-18T22:03:57.948Z] Imported Builder "@vercel/node" from "C:\Users\Rasmus\WowGearDiary\node_modules\@vercel\node"
+> [debug] [2026-04-18T22:03:57.986Z] Imported Builder "@vercel/static-build" from "C:\Users\Rasmus\WowGearDiary\node_modules\@vercel\static-build"
+> [debug] [2026-04-18T22:03:57.986Z] Resolved builders: "@vercel/node@latest => 5.7.11, @vercel/static-build@latest => 2.9.19"
+> [debug] [2026-04-18T22:03:57.998Z] Adding build match for "api/cron/droptimizer-collect" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:57.999Z] Adding build match for "api/cron/droptimizer" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:57.999Z] Adding build match for "api/droptimizer-enrollment/validate" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:57.999Z] Adding build match for "api/blizzard" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:57.999Z] Adding build match for "api/characters" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:57.999Z] Adding build match for "api/droptimizer-enrollment" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:57.999Z] Adding build match for "api/droptimizer-run" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:57.999Z] Adding build match for "api/droptimizer-status" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:57.999Z] Adding build match for "api/guild-dashboard" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "api/guild" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "api/heroic-progress" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "api/raidbots-report" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "api/raidbots" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "api/sim-priorities" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "api/snapshots" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "api/wcl-imports" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "api/wcl" with "@vercel/node@latest"
+> [debug] [2026-04-18T22:03:58.000Z] Adding build match for "package.json" with "@vercel/static-build@latest"
+> Creating initial build
+> Building @vercel/static-build@latest:package.json
+> [debug] [2026-04-18T22:03:58.002Z] Using `@vercel/static-build@2.9.19`
+> [debug] [2026-04-18T22:03:58.002Z] Creating build process for "package.json"
+error This project's package.json defines "packageManager": "yarn@npm@11.11.0". However the current global version of Yarn is 1.22.22.
+
+Presence of the "packageManager" field indicates that the project is meant to be used with Corepack, a tool included by default with all official Node.js distributions starting from 16.9 and 14.19.
+Corepack must currently be enabled by running corepack enable in your terminal. For more information, check out https://yarnpkg.com/corepack.
+^C
