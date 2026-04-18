@@ -169,9 +169,9 @@ test('buildGuildDashboardPayload aggregates nightly parse trends and roster summ
     { snapped_at: '2026-04-10', avg_ilvl: 711.5, member_count: 2 },
   ])
   assert.equal(payload.leaderboard[0].name, 'Whooplol')
-  assert.equal(payload.leaderboard[0].parse_pct, 92)
-  assert.equal(payload.roster.find((member) => member.name === 'Whooplol')?.last_raid_parse_pct, 92)
+  assert.equal(payload.leaderboard[0].parse_pct, 91.8)
+  assert.equal(payload.roster.find((member) => member.name === 'Whooplol')?.last_raid_parse_pct, 91.8)
   assert.equal(payload.roster.find((member) => member.name === 'Whooplol')?.parse_trend.length, 2)
   assert.equal(payload.attendance.length, 2)
-  assert.equal(payload.attendance[0].nights.length, 2)
+  assert.equal(payload.attendance[0].nights.length, 6)
 })

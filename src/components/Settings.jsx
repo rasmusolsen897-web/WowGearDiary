@@ -71,10 +71,25 @@ function ApiStatusRow({ label, endpoint, method = 'GET', body }) {
 }
 
 function normalizeWclImports(payload) {
-  if (Array.isArray(payload)) return payload
-  if (Array.isArray(payload?.imports)) return payload.imports
-  if (Array.isArray(payload?.reports)) return payload.reports
-  return []
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.imports)
+      ? payload.imports
+      : Array.isArray(payload?.reports)
+        ? payload.reports
+        : []
+
+  return rows.map((row) => ({
+    report_code: row?.report_code ?? row?.reportCode ?? row?.code ?? row?.id ?? '',
+    source_url: row?.source_url ?? row?.sourceUrl ?? null,
+    title: row?.title ?? null,
+    raid_night_date: row?.raid_night_date ?? row?.raidNightDate ?? null,
+    zone_name: row?.zone_name ?? row?.zoneName ?? null,
+    import_status: row?.import_status ?? row?.importStatus ?? row?.status ?? 'unknown',
+    last_error: row?.last_error ?? row?.lastError ?? null,
+    updated_at: row?.updated_at ?? row?.updatedAt ?? null,
+    imported_at: row?.imported_at ?? row?.importedAt ?? null,
+  }))
 }
 
 function formatShortTime(value) {

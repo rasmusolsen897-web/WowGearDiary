@@ -2,45 +2,74 @@
 
 ---
 
-## Session: 2026-04-02 — Supabase Migration + Progression History
+## Session: 2026-04-18 - WCL Warehouse Revamp
 
 ### Scope
-Full Supabase backend integration: migrate character storage from KV JSON blob to Postgres, add iLvl history snapshots, wire report URLs to sync across devices, and build SVG progression charts.
+
+Replace request-time WCL parsing with stored WCL warehouse data in Supabase, switch the runtime to a guild-only dashboard, and add a manual WCL import workflow in Settings.
 
 ### Tasks Completed
-- **`api/_supabase.js`** — shared server-side Supabase client
-- **`api/characters.js`** — GET/POST/DELETE characters from Supabase `characters` table; `null` return when empty triggers KV fallback + Supabase seeding in App.jsx
-- **`api/snapshots.js`** — GET iLvl+sim history; POST ilvl (no auth) and sim (write token) snapshots
-- **`api/blizzard.js`** — fire-and-forget iLvl snapshot write after every Blizzard character fetch
-- **`src/App.jsx`** — parallel fetch of KV metadata + Supabase characters on mount; Supabase is source of truth; auto-seeds from KV on first deploy; `setGuild` now syncs to both KV and Supabase
-- **`src/components/CharacterView.jsx`** — `RaidbotsSection` and `DroptimizerSection` now prefer `member.reportUrl`/`member.droptimizerUrl` (Supabase) over localStorage; call `onUpdateMember` on save to sync back; added `<ProgressionCharts>`
-- **`src/components/ProgressionCharts.jsx`** — new component: SVG sparkline charts for iLvl over time and sim DPS over time, collapsible, no external chart library
-- **`src/index.css`** — added chart styles (`.wcl-section`, `.chart-block`, `.chart-x-labels`, `.wcl-expand-btn`, etc.)
-- **`CLAUDE.md`** — updated: Supabase added to stack, new files in structure, new env vars, updated sync flow docs
-- **`PROJECT_STATUS.md`** — created (architecture snapshot, decisions, known debt)
-- Both builds pass (`npm run build` + `npm run build:vercel`)
-- Pushed to `origin/master` and redeployed to Vercel
 
-### Tasks Remaining
-- **Sim DPS snapshots from client** — endpoint exists, client wiring missing. In `RaidbotsSection`, add a `useEffect` on `[dps, reportUrl]` that posts `{ character_name, dps, report_url, report_type: 'raidbots', spec }` to `/api/snapshots?type=sim` when a new URL is saved and DPS loads. Needs `writeToken` passed from App → CharacterView → RaidbotsSection.
-- **Last-fetched timestamps** — show "fetched N min ago" on MemberCard and CharacterView hero
-- **Refresh button** — force-bust Blizzard + WCL cache per character
-- **WCL reset-day cache bust** — auto-invalidate WCL localStorage on EU Tuesday 09:00 UTC
-- **Discord webhook** — weekly raid summary to guild channel
-- **Attendance tracking** — log raid attendance per member over time
+- `api/_wclWarehouse.js` - warehouse normalization, import persistence, list shaping, and guild dashboard aggregation
+- `api/wcl-imports.js` - GET import status list and POST manual import/reimport flow
+- `api/guild-dashboard.js` - single dashboard payload endpoint plus frontend-facing response serialization
+- `docs/supabase-wcl-warehouse.sql` - warehouse table definitions for `wcl_reports`, `wcl_fights`, `wcl_fight_players`, and `wcl_loot_events`
+- `scripts/import-wcl-reports.mjs` - manual CLI helper for importing one or more WCL report URLs/codes
+- `src/App.jsx` - guild-only runtime shell, no character detail rendering
+- `src/components/GuildHeader.jsx` - simplified guild header shell
+- `src/components/GuildOverview.jsx` - dashboard UI powered by `/api/guild-dashboard`
+- `src/components/Settings.jsx` - WCL import admin panel in the API tab
+- `src/index.css` - parchment/ink theme and dashboard styles
+- Tests added or updated for warehouse shaping, dashboard runtime, import panel presence, and dashboard API serialization
 
-### Blockers / Open Questions
-- None blocking. Supabase is live and env vars are set in Vercel.
-- User confirmed Supabase project URL and secret API key added to Vercel → redeployed.
-- First iLvl snapshot row should appear in Supabase `ilvl_snapshots` on next character view load.
+### Verification
+
+- Targeted Node tests for warehouse helpers and dashboard/import contracts passed locally
+- Frontend runtime/source tests for the guild-only shell passed locally
+- Full repo verification should continue to use `npm run verify`
+
+### Important Notes
+
+- The dashboard now reads stored WCL imports instead of browser fanout to WCL
+- Blizzard-backed `ilvl_snapshots` remain the source of truth for iLvl trend data
+- `api/_charactersSync.js` did not need warehouse cleanup changes because the WCL tables are not part of the removal list
+- `src/data.json` remains as bootstrap/fallback data, not the main runtime data source for parse/progression
 
 ### Recommended Next Steps
 
-**First task for next session:** Wire up sim DPS snapshots from the client.
+1. Apply `docs/supabase-wcl-warehouse.sql` in production if needed
+2. Import historical raid reports through Settings to seed real guild history
+3. Smoke-test the live Vercel deployment with imported data and confirm each dashboard panel reflects warehouse rows
 
-In `src/components/CharacterView.jsx` → `RaidbotsSection`:
-1. Pass `writeToken` from `App.jsx` → `CharacterView` → `RaidbotsSection`
-2. Add a `pendingSnapshot` ref, set to `true` in `save()`
-3. Add `useEffect` on `[dps]`: if `pendingSnapshot.current && dps > 0 && writeToken`, POST to `/api/snapshots?type=sim` with `{ character_name: member.name, dps, report_url: reportUrl, report_type: 'raidbots', spec: reportSpec }` and clear the ref
+---
 
-After that: tackle **last-fetched timestamps** — store `fetchedAt` alongside Blizzard/WCL cache entries and surface it in the UI.
+## Session: 2026-04-02 - Supabase Migration + Progression History
+
+### Scope
+
+Full Supabase backend integration: migrate character storage from KV JSON blob to Postgres, add iLvl history snapshots, wire report URLs to sync across devices, and build SVG progression charts.
+
+### Tasks Completed
+
+- `api/_supabase.js` - shared server-side Supabase client
+- `api/characters.js` - GET/POST/DELETE characters from Supabase `characters` table; `null` return when empty triggers KV fallback and Supabase seeding in `App.jsx`
+- `api/snapshots.js` - GET iLvl+sim history; POST iLvl (no auth) and sim (write token) snapshots
+- `api/blizzard.js` - fire-and-forget iLvl snapshot write after every Blizzard character fetch
+- `src/App.jsx` - parallel fetch of KV metadata + Supabase characters on mount; Supabase is source of truth; auto-seeds from KV on first deploy; `setGuild` syncs to both KV and Supabase
+- `src/components/CharacterView.jsx` - `RaidbotsSection` and `DroptimizerSection` prefer Supabase-backed URLs over localStorage and render progression charts
+- `src/components/ProgressionCharts.jsx` - SVG sparkline charts for iLvl history and sim DPS history
+- `src/index.css` - chart styles for WCL/progression sections
+- `PROJECT_STATUS.md` - architecture snapshot, decisions, and known debt
+
+### Tasks Remaining
+
+- Post sim DPS snapshots from the client after a successful saved Raidbots result
+- Add last-fetched timestamps to member cards and the character hero
+- Add a per-character refresh button for Blizzard + WCL caches
+- Invalidate WCL local cache on weekly reset
+- Add weekly Discord webhook summaries
+- Track raid attendance over time
+
+### Recommended Next Steps
+
+Wire up sim DPS snapshots from the client first, then add freshness timestamps and explicit refresh controls.

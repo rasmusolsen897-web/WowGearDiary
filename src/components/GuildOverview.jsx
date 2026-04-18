@@ -80,16 +80,33 @@ function normalizeRosterRow(row) {
     className: row.className ?? row.class_name ?? row.class ?? '',
     specName: row.specName ?? row.spec_name ?? row.spec ?? '',
     role: row.role ?? 'dps',
-    isMain: row.isMain !== false,
+    isMain: row.isMain ?? row.is_main ?? true,
     avgIlvl: numberOrNull(row.avgIlvl ?? row.average_item_level ?? row.item_level),
-    lastRaidParsePct: numberOrNull(row.lastRaidParsePct ?? row.parse_percent ?? row.parsePct),
-    parseTrend: Array.isArray(row.parseTrend) ? row.parseTrend.map((entry) => numberOrNull(entry?.value ?? entry?.pct ?? entry)).filter((entry) => entry !== null) : [],
+    lastRaidParsePct: numberOrNull(row.lastRaidParsePct ?? row.last_raid_parse_pct ?? row.parse_percent ?? row.parsePct),
+    parseTrend: Array.isArray(row.parseTrend)
+      ? row.parseTrend.map((entry) => numberOrNull(entry?.value ?? entry?.pct ?? entry?.parse_pct ?? entry)).filter((entry) => entry !== null)
+      : Array.isArray(row.parse_trend)
+        ? row.parse_trend.map((entry) => numberOrNull(entry?.value ?? entry?.pct ?? entry?.parse_pct ?? entry)).filter((entry) => entry !== null)
+        : [],
   }
 }
 
 function normalizeDashboard(payload, guild) {
   const parsed = payload && typeof payload === 'object' ? payload : {}
   const roster = Array.isArray(parsed.roster) ? parsed.roster.map(normalizeRosterRow).filter(Boolean) : []
+  const parseTrend = Array.isArray(parsed.charts?.parseTrend)
+    ? parsed.charts.parseTrend.map((entry) => ({
+      raidDate: entry?.raidDate ?? entry?.raid_night_date ?? null,
+      avgParsePct: numberOrNull(entry?.avgParsePct ?? entry?.avg_parse_pct),
+    }))
+    : []
+  const ilvlTrend = Array.isArray(parsed.charts?.ilvlTrend)
+    ? parsed.charts.ilvlTrend.map((entry) => ({
+      snapped_at: entry?.snapped_at ?? entry?.snappedAt ?? null,
+      avg_ilvl: numberOrNull(entry?.avg_ilvl ?? entry?.avgIlvl),
+      member_count: numberOrNull(entry?.member_count ?? entry?.memberCount) ?? 0,
+    }))
+    : []
 
   return {
     guild: {
@@ -98,19 +115,40 @@ function normalizeDashboard(payload, guild) {
       region: parsed.guild?.region ?? guild?.region ?? '',
     },
     charts: {
-      parseTrend: Array.isArray(parsed.charts?.parseTrend) ? parsed.charts.parseTrend : [],
-      ilvlTrend: Array.isArray(parsed.charts?.ilvlTrend) ? parsed.charts.ilvlTrend : [],
+      parseTrend,
+      ilvlTrend,
     },
     progress: {
-      zoneName: parsed.progress?.zoneName ?? '',
-      progressedBossCount: numberOrNull(parsed.progress?.progressedBossCount) ?? 0,
-      bossCount: numberOrNull(parsed.progress?.bossCount) ?? 0,
-      deltaThisWeek: numberOrNull(parsed.progress?.deltaThisWeek) ?? 0,
-      bosses: Array.isArray(parsed.progress?.bosses) ? parsed.progress.bosses : [],
+      zoneName: parsed.progress?.zoneName ?? parsed.progress?.zone_name ?? '',
+      progressedBossCount: numberOrNull(parsed.progress?.progressedBossCount ?? parsed.progress?.progressed_boss_count) ?? 0,
+      bossCount: numberOrNull(parsed.progress?.bossCount ?? parsed.progress?.boss_count) ?? 0,
+      deltaThisWeek: numberOrNull(parsed.progress?.deltaThisWeek ?? parsed.progress?.delta_this_week) ?? 0,
+      bosses: Array.isArray(parsed.progress?.bosses)
+        ? parsed.progress.bosses.map((entry) => ({
+          ...entry,
+          bestPercent: numberOrNull(entry?.bestPercent ?? entry?.best_percent),
+        }))
+        : [],
     },
-    leaderboard: Array.isArray(parsed.leaderboard) ? parsed.leaderboard : [],
+    leaderboard: Array.isArray(parsed.leaderboard)
+      ? parsed.leaderboard.map((entry) => ({
+        ...entry,
+        encounterName: entry?.encounterName ?? entry?.encounter_name ?? null,
+        parsePct: numberOrNull(entry?.parsePct ?? entry?.parse_pct),
+        wclUrl: entry?.wclUrl ?? entry?.wcl_url ?? null,
+      }))
+      : [],
     attendance: Array.isArray(parsed.attendance) ? parsed.attendance : [],
-    loot: Array.isArray(parsed.loot) ? parsed.loot : [],
+    loot: Array.isArray(parsed.loot)
+      ? parsed.loot.map((entry) => ({
+        ...entry,
+        playerName: entry?.playerName ?? entry?.actor_name ?? null,
+        itemName: entry?.itemName ?? entry?.item_name ?? null,
+        sourceName: entry?.sourceName ?? entry?.encounter_name ?? null,
+        occurredAt: entry?.occurredAt ?? entry?.occurred_at ?? null,
+        isTier: entry?.isTier ?? entry?.is_tier ?? false,
+      }))
+      : [],
     roster: roster.length ? roster : buildFallbackRoster(guild),
   }
 }
