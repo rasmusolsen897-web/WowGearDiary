@@ -10,6 +10,7 @@
  */
 
 import { getSupabase, isConfigured } from './_supabase.js'
+import { cleanupRemovedCharacterData, syncCharactersAuthoritatively } from './_charactersSync.js'
 
 function toRow(m) {
   return {
@@ -81,21 +82,17 @@ export default async function handler(req, res) {
   // ── POST — bulk upsert characters ──────────────────────────────────────────
   if (req.method === 'POST') {
     const { characters } = req.body ?? {}
-    if (!Array.isArray(characters) || !characters.length) {
+    if (!Array.isArray(characters)) {
       return res.status(400).json({ error: 'characters[] array required' })
     }
 
-    const rows = characters.map(toRow)
-    const { error } = await supabase
-      .from('characters')
-      .upsert(rows, { onConflict: 'name' })
-
-    if (error) {
+    try {
+      const result = await syncCharactersAuthoritatively(supabase, characters, toRow)
+      return res.status(200).json({ ok: true, count: result.count, removedNames: result.removedNames })
+    } catch (error) {
       console.error('[api/characters POST]', error.message)
       return res.status(500).json({ error: error.message })
     }
-
-    return res.status(200).json({ ok: true, count: rows.length })
   }
 
   // ── DELETE — remove one character ─────────────────────────────────────────
@@ -103,17 +100,13 @@ export default async function handler(req, res) {
     const { name } = req.query
     if (!name) return res.status(400).json({ error: 'name query param required' })
 
-    const { error } = await supabase
-      .from('characters')
-      .delete()
-      .eq('name', name)
-
-    if (error) {
+    try {
+      await cleanupRemovedCharacterData(supabase, [name])
+      return res.status(200).json({ ok: true })
+    } catch (error) {
       console.error('[api/characters DELETE]', error.message)
       return res.status(500).json({ error: error.message })
     }
-
-    return res.status(200).json({ ok: true })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

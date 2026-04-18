@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { buildCharacterStorageKey } from '../utils/characterIdentity.js'
 
 const CACHE_TTL = 60 * 60 * 1000 // 1 hour
 
@@ -116,4 +117,8 @@ export function setStoredReportUrl(memberKey, url) {
     if (url) localStorage.setItem(`raidbots-url:${memberKey}`, url)
     else localStorage.removeItem(`raidbots-url:${memberKey}`)
   } catch {}
+}
+
+export function buildRaidbotsMemberKey(region, realm, name) {
+  return buildCharacterStorageKey(region, realm, name)
 }

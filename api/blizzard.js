@@ -15,9 +15,14 @@
 
 import { getBlizzardToken, API_HOST } from './_blizzardAuth.js'
 import { applyRateLimit } from './_rateLimit.js'
+import { buildBlizzardPathSegment } from '../src/utils/characterIdentity.js'
 
 const VALID_REGIONS = new Set(['eu', 'us', 'kr', 'tw'])
-const SAFE_QUERY_RE = /^[a-zA-Z0-9\s'-]{1,40}$/
+
+function isSafeQueryValue(value) {
+  const normalized = String(value ?? '').normalize('NFC').trim()
+  return normalized.length >= 1 && normalized.length <= 40 && !/[/?#\\]/.test(normalized)
+}
 
 function normalizeSlotType(type) {
   const map = {
@@ -33,8 +38,8 @@ function normalizeSlotType(type) {
 async function fetchCharacter(region, realm, name, token) {
   const host      = API_HOST[region] ?? API_HOST.eu
   const namespace = `profile-${region}`
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, '-').replace(/'/g, '')
-  const nameSlug  = name.toLowerCase()
+  const realmSlug = buildBlizzardPathSegment(realm)
+  const nameSlug  = buildBlizzardPathSegment(name)
 
   const [equipRes, summaryRes] = await Promise.all([
     fetch(`${host}/profile/wow/character/${realmSlug}/${nameSlug}/equipment?namespace=${namespace}&locale=en_US`, {
@@ -68,7 +73,7 @@ async function fetchCharacter(region, realm, name, token) {
   const hasCraftedWeapon  = craftedWeapon != null
   const craftedWeaponIlvl = craftedWeapon?.ilvl ?? null
 
-  const avgIlvl = summary.average_item_level ?? summary.equipped_item_level ?? 0
+  const avgIlvl = summary.equipped_item_level ?? summary.average_item_level ?? 0
 
   return {
     name:    summary.name ?? name,
@@ -85,11 +90,15 @@ async function fetchCharacter(region, realm, name, token) {
   }
 }
 
+function isDebugRequest(req) {
+  return req.query?.debug === '1'
+}
+
 async function fetchMedia(region, realm, name, token) {
   const host      = API_HOST[region] ?? API_HOST.eu
   const namespace = `profile-${region}`
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, '-').replace(/'/g, '')
-  const nameSlug  = name.toLowerCase()
+  const realmSlug = buildBlizzardPathSegment(realm)
+  const nameSlug  = buildBlizzardPathSegment(name)
 
   const res = await fetch(
     `${host}/profile/wow/character/${realmSlug}/${nameSlug}/character-media?namespace=${namespace}&locale=en_US`,
@@ -118,7 +127,7 @@ export default async function handler(req, res) {
   }
 
   if (!realm || !name) return res.status(400).json({ error: 'realm and name required' })
-  if (!SAFE_QUERY_RE.test(String(realm)) || !SAFE_QUERY_RE.test(String(name))) {
+  if (!isSafeQueryValue(realm) || !isSafeQueryValue(name)) {
     return res.status(400).json({ error: 'invalid realm or name' })
   }
 
@@ -138,6 +147,25 @@ export default async function handler(req, res) {
     if (action === 'character') {
       const data = await fetchCharacter(region, realm, name, token)
       res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate')
+
+      if (isDebugRequest(req)) {
+        const host      = API_HOST[region] ?? API_HOST.eu
+        const namespace = `profile-${region}`
+        const realmSlug = buildBlizzardPathSegment(realm)
+        const nameSlug  = buildBlizzardPathSegment(name)
+        const summaryRes = await fetch(`${host}/profile/wow/character/${realmSlug}/${nameSlug}?namespace=${namespace}&locale=en_US`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const summary = summaryRes.ok ? await summaryRes.json() : {}
+
+        return res.status(200).json({
+          ...data,
+          debug: {
+            averageItemLevel: summary.average_item_level ?? null,
+            equippedItemLevel: summary.equipped_item_level ?? null,
+          },
+        })
+      }
 
       // Fire-and-forget iLvl snapshot (best-effort, doesn't block response)
       if (data.avgIlvl && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {

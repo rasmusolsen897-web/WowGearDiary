@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { timeAgo } from '../utils/timeAgo.js'
+import { identityNamesEqual } from '../utils/characterIdentity.js'
 
 /**
  * Settings — slide-in drawer with 3 tabs: Guild, Characters, API.
@@ -662,7 +663,7 @@ function CharacterRow({ member, mainNames, onChange, onRemove }) {
                 style={{ ...inputStyle, width: 'auto', flex: 'none' }}
               >
                 <option value="">— none —</option>
-                {mainNames.filter(n => n.toLowerCase() !== member.name.toLowerCase()).map(n => (
+                {mainNames.filter(n => !identityNamesEqual(n, member.name)).map(n => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
@@ -805,12 +806,12 @@ export default function Settings({ open, onClose, guild, onGuildChange, writeTok
     mains.forEach((main, mainIdx) => {
       const originalIdx = localGuild.members.indexOf(main)
       result.push({ member: main, idx: originalIdx, isAlt: false })
-      alts.filter(a => a.altOf?.toLowerCase() === main.name.toLowerCase()).forEach(alt => {
+      alts.filter(a => identityNamesEqual(a.altOf, main.name)).forEach(alt => {
         result.push({ member: alt, idx: localGuild.members.indexOf(alt), isAlt: true })
       })
     })
     // Alts with no matching main
-    alts.filter(a => !mainNames.some(n => n.toLowerCase() === (a.altOf ?? '').toLowerCase())).forEach(alt => {
+    alts.filter(a => !mainNames.some(n => identityNamesEqual(n, a.altOf))).forEach(alt => {
       result.push({ member: alt, idx: localGuild.members.indexOf(alt), isAlt: false })
     })
     return result

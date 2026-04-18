@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { normalizeWclServerSlug } from '../utils/wclRankings.js'
+import { buildCharacterStorageKey } from '../utils/characterIdentity.js'
 
 const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
@@ -142,13 +142,11 @@ const CHARACTER_RANKINGS_QUERY = /* GraphQL */ `
  * Returns { data: { character }, loading, error, refresh }.
  */
 export function useCharacterParses(name, realm, region = 'eu', zoneID = null) {
-  const normalizedRealm = normalizeWclServerSlug(realm)
-  const normalizedRegion = String(region ?? 'eu').trim().toLowerCase()
-  const variables = { name, serverSlug: normalizedRealm, serverRegion: normalizedRegion, zoneID }
-  const cacheId   = `parses:${normalizedRegion}:${normalizedRealm}:${name}:${zoneID ?? 'auto'}`.toLowerCase()
+  const variables = { name, serverSlug: realm, serverRegion: region, zoneID }
+  const cacheId = `parses:${buildCharacterStorageKey(region, realm, name)}:${zoneID ?? 'auto'}`
 
   const { data, loading, error, refresh, fetchedAt } = useWCLAPI(
-    name && normalizedRealm ? CHARACTER_RANKINGS_QUERY : null,
+    name && realm ? CHARACTER_RANKINGS_QUERY : null,
     variables,
     cacheId,
   )

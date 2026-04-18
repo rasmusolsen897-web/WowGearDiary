@@ -1,3 +1,9 @@
+import {
+  buildBlizzardPathSegment,
+  buildIdentitySlug,
+  normalizeIdentityName,
+} from '../src/utils/characterIdentity.js'
+
 const RAIDBOTS_BASE = 'https://www.raidbots.com'
 const RAIDBOTS_USER_AGENT = 'WowGearDiary/1.0'
 
@@ -43,15 +49,11 @@ export function buildRaidbotsResultUrl(jobId) {
 }
 
 function slugifyRealm(realm) {
-  return String(realm ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/'/g, '')
+  return buildIdentitySlug(realm)
 }
 
 function slugifyName(name) {
-  return String(name ?? '').trim().toLowerCase()
+  return normalizeIdentityName(name)
 }
 
 function normalizeFaction(value) {
@@ -192,15 +194,17 @@ export async function createRaidbotsSession() {
 }
 
 export async function fetchRaidbotsCharacter(region, realm, name) {
-  const regionSlug = String(region ?? '').trim().toLowerCase()
+  const regionSlug = normalizeIdentityName(region)
   const realmSlug = slugifyRealm(realm)
   const nameSlug = slugifyName(name)
+  const realmPath = buildBlizzardPathSegment(realm)
+  const namePath = buildBlizzardPathSegment(name)
 
-  if (!regionSlug || !realmSlug || !nameSlug) {
+  if (!regionSlug || !realmSlug || !nameSlug || !realmPath || !namePath) {
     throw new Error('Raidbots character lookup requires region, realm, and name')
   }
 
-  const characterRes = await fetch(`${RAIDBOTS_BASE}/wowapi/character/${regionSlug}/${realmSlug}/${nameSlug}`, {
+  const characterRes = await fetch(`${RAIDBOTS_BASE}/wowapi/character/${regionSlug}/${realmPath}/${namePath}`, {
     headers: {
       'User-Agent': RAIDBOTS_USER_AGENT,
     },
@@ -270,11 +274,11 @@ export function buildDroptimizerPayload(droptimizer, character) {
     reportName: droptimizer?.reportName ?? `Droptimizer • ${name}`,
     baseActorName: name,
     armory: {
-      region: String(region).trim().toLowerCase(),
+      region: normalizeIdentityName(region),
       realm: slugifyRealm(realm),
       name,
     },
-    region: String(region).trim().toLowerCase(),
+    region: normalizeIdentityName(region),
     realm: slugifyRealm(realm),
     name,
     character: actor,

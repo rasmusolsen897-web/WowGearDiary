@@ -1,4 +1,5 @@
 import { getSupabase, isConfigured } from './_supabase.js'
+import { normalizeIdentityName } from '../src/utils/characterIdentity.js'
 
 export const DROPTIMIZER_SCENARIOS = {
   raid_heroic: {
@@ -36,7 +37,7 @@ const jsonEnvCache = new Map()
 const jsonEnvWarningCache = new Map()
 
 function normalizeCharacterName(name) {
-  return String(name ?? '').trim().toLowerCase()
+  return normalizeIdentityName(name)
 }
 
 function warnJsonEnv(name, sourceKey, message) {

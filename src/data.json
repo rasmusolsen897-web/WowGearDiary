@@ -109,15 +109,6 @@
         "altOf": null
       },
       {
-        "name": "Krypts",
-        "class": "",
-        "spec": "",
-        "role": "dps",
-        "isMain": true,
-        "realm": "",
-        "altOf": null
-      },
-      {
         "name": "Mufuzu",
         "class": "",
         "spec": "",
@@ -151,7 +142,7 @@
         "role": "dps",
         "isMain": false,
         "realm": "",
-        "altOf": "Krypts"
+        "altOf": null
       }
     ]
   }
