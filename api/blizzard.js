@@ -18,6 +18,9 @@ import { applyRateLimit } from './_rateLimit.js'
 import { buildBlizzardPathSegment } from '../src/utils/characterIdentity.js'
 
 const VALID_REGIONS = new Set(['eu', 'us', 'kr', 'tw'])
+const OVERVIEW_EXPANSION_ID = 'midnight'
+const OVERVIEW_EXPANSION_NAME = 'Midnight'
+const OVERVIEW_DIFFICULTY_SLUG = 'heroic'
 
 function isSafeQueryValue(value) {
   const normalized = String(value ?? '').normalize('NFC').trim()
@@ -90,6 +93,73 @@ async function fetchCharacter(region, realm, name, token) {
   }
 }
 
+function buildEmptyRaidSummary({ name = '', realm = '', lastUpdated = null } = {}) {
+  return {
+    name,
+    realm,
+    lastUpdated,
+    expansionId: OVERVIEW_EXPANSION_ID,
+    expansionName: OVERVIEW_EXPANSION_NAME,
+    difficulty: OVERVIEW_DIFFICULTY_SLUG,
+    progressedBossCount: 0,
+    bossCount: 0,
+    raids: [],
+  }
+}
+
+function normalizeRaidBoss(boss) {
+  const killCount = boss?.killCount ?? 0
+
+  return {
+    name: boss?.name ?? 'Unknown Boss',
+    killCount,
+    lastTimestamp: boss?.lastTimestamp ?? null,
+    progressed: killCount > 0,
+  }
+}
+
+function normalizeRaidSummary(payload) {
+  const character = payload?.character ?? {}
+  const summary = buildEmptyRaidSummary({
+    name: character?.name ?? '',
+    realm: character?.realm?.name ?? '',
+    lastUpdated: character?.lastUpdatedTimestamp?.iso8601 ?? null,
+  })
+
+  const expansions = payload?.expansions ?? payload?.raids?.expansions ?? []
+  const midnight = expansions.find((expansion) => expansion?.id === OVERVIEW_EXPANSION_ID)
+
+  if (!midnight) return summary
+
+  summary.expansionName = midnight?.name ?? OVERVIEW_EXPANSION_NAME
+
+  summary.raids = (midnight?.raids ?? []).flatMap((raid) => {
+    const heroic = (raid?.difficulties ?? []).find(
+      (difficulty) => difficulty?.difficulty?.slug === OVERVIEW_DIFFICULTY_SLUG
+    )
+
+    if (!heroic) return []
+
+    const bosses = (heroic?.bosses ?? []).map(normalizeRaidBoss)
+    const bossCount = heroic?.total ?? bosses.length
+    const progressedBossCount = bosses.filter((boss) => boss.progressed).length
+
+    return [{
+      id: raid?.id ?? raid?.name ?? 'unknown-raid',
+      name: raid?.name ?? 'Unknown Raid',
+      progressedBossCount,
+      bossCount,
+      progress: heroic?.progress?.slug ?? 'not-started',
+      bosses,
+    }]
+  })
+
+  summary.progressedBossCount = summary.raids.reduce((sum, raid) => sum + raid.progressedBossCount, 0)
+  summary.bossCount = summary.raids.reduce((sum, raid) => sum + raid.bossCount, 0)
+
+  return summary
+}
+
 function isDebugRequest(req) {
   return req.query?.debug === '1'
 }
@@ -111,6 +181,25 @@ async function fetchMedia(region, realm, name, token) {
   return { avatarUrl: avatar?.value ?? null }
 }
 
+async function fetchRaids(region, realm, name, token) {
+  const host = API_HOST[region] ?? API_HOST.eu
+  const namespace = `profile-${region}`
+  const realmSlug = buildBlizzardPathSegment(realm)
+  const nameSlug = buildBlizzardPathSegment(name)
+
+  const res = await fetch(
+    `${host}/profile/wow/character/${realmSlug}/${nameSlug}/encounters/raids?namespace=${namespace}&locale=en_US`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+
+  if (!res.ok) {
+    throw new Error(`Character raids not found: ${name}-${realm} (${res.status})`)
+  }
+
+  const payload = await res.json()
+  return normalizeRaidSummary(payload)
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
@@ -122,7 +211,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'invalid region' })
   }
 
-  if (!['character', 'media'].includes(action)) {
+  if (!['character', 'media', 'raids'].includes(action)) {
     return res.status(400).json({ error: `Unknown action: ${action}` })
   }
 
@@ -183,6 +272,12 @@ export default async function handler(req, res) {
     if (action === 'media') {
       const data = await fetchMedia(region, realm, name, token)
       res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
+      return res.status(200).json(data)
+    }
+
+    if (action === 'raids') {
+      const data = await fetchRaids(region, realm, name, token)
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate')
       return res.status(200).json(data)
     }
   } catch (err) {

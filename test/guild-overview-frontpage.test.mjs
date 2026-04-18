@@ -7,7 +7,7 @@ const guildOverviewSource = readFileSync(new URL('../src/components/GuildOvervie
 test('guild overview keeps the progression history graph on the front page', () => {
   assert.match(
     guildOverviewSource,
-    /useHeroicProgress/,
+    /useBlizzardRaids/,
   )
   assert.match(
     guildOverviewSource,
@@ -20,4 +20,5 @@ test('guild overview keeps the progression history graph on the front page', () 
   assert.match(guildOverviewSource, /<ProgressionCharts characterName=\{[^}]+\} title="Progression" \/>/)
   assert.doesNotMatch(guildOverviewSource, /className="filter-select"/)
   assert.doesNotMatch(guildOverviewSource, /Main Character Snapshot/)
+  assert.doesNotMatch(guildOverviewSource, /useHeroicProgress/)
 })

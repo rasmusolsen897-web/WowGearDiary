@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, memo } from 'react'
-import { useBlizzardAPI, useCharacterParses, useHeroicProgress } from '../hooks/index.js'
+import { useBlizzardAPI, useBlizzardRaids, useCharacterParses } from '../hooks/index.js'
 import { useRaidbotsReport, getStoredReportUrl, buildRaidbotsMemberKey } from '../hooks/useRaidbotsReport.js'
 import { timeAgo } from '../utils/timeAgo.js'
 import ProgressionCharts from './ProgressionCharts.jsx'
@@ -13,6 +13,8 @@ const CLASS_COLORS = {
   'Rogue':         '#fff569', 'Shaman':       '#0070de', 'Warlock': '#9482c9',
   'Warrior':       '#c79c6e',
 }
+
+const OVERVIEW_PROGRESS_CHARACTER = 'Whooplol'
 
 function ilvlColor(ilvl) {
   if (ilvl >= 272) return 'var(--legendary-orange)'
@@ -194,19 +196,20 @@ const MemberCard = memo(function MemberCard({ member, region, realm, onSelectMem
 // ── GuildOverview ─────────────────────────────────────────────────────────────
 
 function HeroicProgressPanel({ guild, onSelectMember }) {
-  const mainMembers = useMemo(
-    () => (guild?.members ?? []).filter((member) => member?.isMain !== false),
+  const whooplolMember = useMemo(
+    () => (guild?.members ?? []).find((member) => member?.name?.toLowerCase() === OVERVIEW_PROGRESS_CHARACTER.toLowerCase()) ?? null,
     [guild?.members],
   )
-  const mainMember = mainMembers[0] ?? guild?.members?.[0] ?? null
-  const { data: summary, loading, error } = useHeroicProgress(guild)
+  const progressRealm = whooplolMember?.realm?.trim() || guild?.realm
+  const progressRegion = guild?.region || 'eu'
+  const { data: summary, loading, error } = useBlizzardRaids(OVERVIEW_PROGRESS_CHARACTER, progressRealm, progressRegion)
 
   const progressLabel = summary?.bossCount > 0
     ? `${summary.progressedBossCount} / ${summary.bossCount} bosses`
     : 'No heroic data yet'
-  const thresholdLabel = summary?.mainCount > 0
-    ? `${summary.killThreshold} of ${summary.mainCount} mains required`
-    : 'No mains configured'
+  const updatedLabel = summary?.lastUpdated
+    ? `Updated ${timeAgo(new Date(summary.lastUpdated).getTime())}`
+    : `${summary?.expansionName ?? 'Midnight'} Heroic`
   const missingSummary = summary?.raids?.map((raid) => ({
     raidName: raid.name,
     missingBosses: raid.bosses.filter((boss) => !boss.progressed).map((boss) => boss.name),
@@ -217,27 +220,27 @@ function HeroicProgressPanel({ guild, onSelectMember }) {
       <div className="heroic-progress-header">
         <div className="progression-card-copy">
           <div className="progression-card-kicker">Heroic Progress</div>
-          <h3 className="progression-card-title">Guild raid status</h3>
+          <h3 className="progression-card-title">Whooplol raid status</h3>
           <p className="progression-card-subtitle">
-            A boss counts once at least half of the mains have a Heroic kill.
+            Exact Blizzard progress for Midnight Heroic kills.
           </p>
         </div>
 
-        {mainMember && (
+        {whooplolMember && (
           <button
             type="button"
             className="btn-pill"
-            onClick={() => onSelectMember?.(mainMember)}
+            onClick={() => onSelectMember?.(whooplolMember)}
           >
-            Open {mainMember.name}
+            Open {OVERVIEW_PROGRESS_CHARACTER}
           </button>
         )}
       </div>
 
       <div className="heroic-progress-summary">
         <span className="heroic-progress-count">{progressLabel}</span>
-        <span className="heroic-progress-threshold">{thresholdLabel}</span>
-        {loading && <span className="heroic-progress-loading">Loading heroic logs...</span>}
+        <span className="heroic-progress-threshold">{updatedLabel}</span>
+        {loading && <span className="heroic-progress-loading">Loading Blizzard raids...</span>}
         {error && <span className="heroic-progress-loading">{error}</span>}
       </div>
 
@@ -262,7 +265,7 @@ function HeroicProgressPanel({ guild, onSelectMember }) {
           </div>
         )) : (
           <p className="heroic-progress-empty">
-            {loading ? 'Loading heroic logs...' : error ? 'Unable to load heroic progress right now.' : 'No heroic boss data yet.'}
+            {loading ? 'Loading Blizzard raids...' : error ? 'Unable to load Blizzard raid progress right now.' : 'No heroic boss data yet.'}
           </p>
         )}
       </div>
@@ -276,16 +279,8 @@ function HeroicProgressPanel({ guild, onSelectMember }) {
           ))
           : summary?.bossCount > 0
             ? 'Full clear on the tracked heroic bosses.'
-            : 'Waiting for heroic boss data.'}
+            : 'Waiting for Blizzard heroic boss data.'}
       </div>
-
-      {summary?.warnings?.length > 0 && (
-        <div className="heroic-progress-warnings">
-          {summary.warnings.map((warning) => (
-            <span key={warning} className="heroic-progress-footer-row">{warning}</span>
-          ))}
-        </div>
-      )}
     </section>
   )
 }
