@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import data from './data.json'
 import GuildHeader from './components/GuildHeader.jsx'
 import GuildOverview from './components/GuildOverview.jsx'
-import CharacterView from './components/CharacterView.jsx'
 import Settings from './components/Settings.jsx'
-import { identityNamesEqual, normalizeIdentityName } from './utils/characterIdentity.js'
+import { normalizeIdentityName } from './utils/characterIdentity.js'
 import {
   findMemberByName,
   pruneGuildMembers,
@@ -12,8 +11,8 @@ import {
   REMOVED_MEMBER_NAMES,
 } from './utils/rosterSync.js'
 
-const GUILD_STORAGE_KEY  = 'wow-gear-diary:guild'
-const TOKEN_STORAGE_KEY  = 'wow-gear-diary:write-token'
+const GUILD_STORAGE_KEY = 'wow-gear-diary:guild'
+const TOKEN_STORAGE_KEY = 'wow-gear-diary:write-token'
 
 function sanitizeMember(member) {
   if (!member || typeof member !== 'object') return member
@@ -41,21 +40,28 @@ function loadGuild() {
     const stored = localStorage.getItem(GUILD_STORAGE_KEY)
     if (stored) {
       const parsed = sanitizeGuild(JSON.parse(stored))
-      // Merge: add any new members from data.json that aren't in localStorage yet
-      const storedNames = new Set(parsed.members.map(m => normalizeIdentityName(m.name)))
-      const newMembers  = sanitizeMembers(data.guild.members).filter(m => !storedNames.has(normalizeIdentityName(m.name)))
-      return { ...parsed, members: [...parsed.members, ...newMembers] }
+      const storedNames = new Set((parsed.members ?? []).map((member) => normalizeIdentityName(member.name)))
+      const newMembers = sanitizeMembers(data.guild.members).filter(
+        (member) => !storedNames.has(normalizeIdentityName(member.name)),
+      )
+      return { ...parsed, members: [...(parsed.members ?? []), ...newMembers] }
     }
   } catch {}
   return sanitizeGuild(data.guild)
 }
 
 function saveGuild(guild) {
-  try { localStorage.setItem(GUILD_STORAGE_KEY, JSON.stringify(sanitizeGuild(guild))) } catch {}
+  try {
+    localStorage.setItem(GUILD_STORAGE_KEY, JSON.stringify(sanitizeGuild(guild)))
+  } catch {}
 }
 
 function loadWriteToken() {
-  try { return localStorage.getItem(TOKEN_STORAGE_KEY) ?? '' } catch { return '' }
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY) ?? ''
+  } catch {
+    return ''
+  }
 }
 
 function saveWriteToken(token) {
@@ -78,52 +84,48 @@ async function postCharactersToApi(members, token) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Write-Token': token },
     body: JSON.stringify({ characters: sanitizeMembers(members) }),
-  }).catch(() => {}) // best-effort, don't block
+  }).catch(() => {})
 }
 
 export default function App() {
-  const [guild, setGuildState]              = useState(loadGuild)
-  const [selectedMember, setSelectedMember] = useState(null)
-  const [settingsOpen, setSettingsOpen]     = useState(false)
-  const [writeToken, setWriteTokenState]    = useState(loadWriteToken)
-  const [syncError, setSyncError]           = useState(null) // null | string
-  const [syncStatus, setSyncStatus]         = useState('idle') // 'idle' | 'syncing' | 'ok' | 'error'
+  const [guild, setGuildState] = useState(loadGuild)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [writeToken, setWriteTokenState] = useState(loadWriteToken)
+  const [syncError, setSyncError] = useState(null)
+  const [syncStatus, setSyncStatus] = useState('idle')
 
-  // Keep a ref to the current writeToken so the setGuild closure always sees the latest value
   const writeTokenRef = useRef(writeToken)
-  useEffect(() => { writeTokenRef.current = writeToken }, [writeToken])
+  useEffect(() => {
+    writeTokenRef.current = writeToken
+  }, [writeToken])
 
-  // On mount: fetch guild metadata (KV) + characters (Supabase) in parallel
   useEffect(() => {
     const controller = new AbortController()
     const sig = { signal: controller.signal }
 
     Promise.all([
-      fetch('/api/guild', sig).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/characters', sig).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/guild', sig).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/characters', sig).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]).then(([remote, supaChars]) => {
       const sanitizedRemote = sanitizeGuild(remote)
       const sanitizedSupaChars = sanitizeMembers(supaChars)
 
-      setGuildState(prev => {
+      setGuildState((prev) => {
         let updated = prev
 
-        // Apply guild metadata (name, realm, region) from KV
         if (sanitizedRemote) {
           updated = {
             ...updated,
-            name:   sanitizedRemote.name   ?? updated.name,
-            realm:  sanitizedRemote.realm  ?? updated.realm,
+            name: sanitizedRemote.name ?? updated.name,
+            realm: sanitizedRemote.realm ?? updated.realm,
             region: sanitizedRemote.region ?? updated.region,
           }
         }
 
-        // Supabase characters are source of truth; KV members are fallback
         if (sanitizedSupaChars.length) {
           updated = { ...updated, members: sanitizedSupaChars }
         } else if (sanitizedRemote?.members?.length) {
           updated = { ...updated, members: sanitizedRemote.members }
-          // Seed Supabase if empty and we have a write token
           const token = writeTokenRef.current
           if (token) postCharactersToApi(sanitizedRemote.members, token)
         }
@@ -136,72 +138,58 @@ export default function App() {
     return () => controller.abort()
   }, [])
 
-  // Central setter — writes to localStorage and (if token set) syncs to API + Supabase
   function setGuild(updaterOrValue) {
-    setGuildState(prev => {
+    setGuildState((prev) => {
       const updated = sanitizeGuild(
         typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue,
       )
+
       const removedNames = prev.members
-        .filter(member => !findMemberByName(updated.members, member.name))
-        .map(member => member.name)
+        .filter((member) => !findMemberByName(updated.members, member.name))
+        .map((member) => member.name)
 
       saveGuild(updated)
       purgeRemovedCharacterStorage(removedNames, updated)
+
       const token = writeTokenRef.current
       if (token) {
         setSyncStatus('syncing')
-        // Sync guild metadata to KV and characters to Supabase in parallel
         Promise.all([
           postGuildToApi(updated, token),
           postCharactersToApi(updated.members, token),
         ]).then(([res]) => {
           if (res.status === 401) {
             setSyncStatus('error')
-            setSyncError('Wrong password — changes saved locally only. Re-enter in Settings → Guild.')
+            setSyncError('Wrong password - changes saved locally only. Re-enter in Settings > Guild.')
           } else if (res.ok) {
             setSyncStatus('ok')
             setSyncError(null)
           } else {
             setSyncStatus('error')
-            setSyncError('Sync failed — changes saved locally.')
+            setSyncError('Sync failed - changes saved locally.')
           }
         }).catch(() => {
           setSyncStatus('error')
-          setSyncError('Sync failed — check your connection.')
+          setSyncError('Sync failed - check your connection.')
         })
       }
+
       return updated
     })
   }
 
-  // Keep selectedMember in sync when guild changes (e.g. after Settings save)
   function handleGuildChange(updated) {
     setGuild(updated)
-    if (selectedMember) {
-      const refreshed = findMemberByName(updated.members, selectedMember.name)
-      if (refreshed) setSelectedMember(refreshed)
-    }
-  }
-
-  // Called from CharacterView when Blizzard/Raidbots data teaches us class/spec/role
-  function updateMember(name, patch) {
-    setGuild(prev => ({
-      ...prev,
-      members: prev.members.map(m =>
-        identityNamesEqual(m.name, name) ? { ...m, ...patch } : m
-      ),
-    }))
-    if (identityNamesEqual(selectedMember?.name, name)) {
-      setSelectedMember(prev => ({ ...prev, ...patch }))
-    }
   }
 
   function handleWriteTokenChange(token) {
     setWriteTokenState(token)
     writeTokenRef.current = token
     saveWriteToken(token)
-    if (!token) { setSyncError(null); setSyncStatus('idle') }
+    if (!token) {
+      setSyncError(null)
+      setSyncStatus('idle')
+    }
   }
 
   const settingsProps = {
@@ -215,31 +203,12 @@ export default function App() {
     syncStatus,
   }
 
-  if (selectedMember) {
-    return (
-      <>
-        <GuildHeader guild={guild} onSettingsClick={() => setSettingsOpen(true)} />
-        <CharacterView
-          member={selectedMember}
-          guild={guild}
-          onBack={() => setSelectedMember(null)}
-          onUpdateMember={updateMember}
-          writeToken={writeToken}
-        />
-        <Settings {...settingsProps} />
-      </>
-    )
-  }
-
   return (
     <>
       <GuildHeader guild={guild} onSettingsClick={() => setSettingsOpen(true)} />
-      <div className="app-container">
-        <GuildOverview
-          guild={guild}
-          onSelectMember={setSelectedMember}
-        />
-      </div>
+      <main className="app-shell">
+        <GuildOverview guild={guild} />
+      </main>
       <Settings {...settingsProps} />
     </>
   )

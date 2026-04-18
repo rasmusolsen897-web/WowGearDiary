@@ -70,6 +70,13 @@ function ApiStatusRow({ label, endpoint, method = 'GET', body }) {
   )
 }
 
+function normalizeWclImports(payload) {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.imports)) return payload.imports
+  if (Array.isArray(payload?.reports)) return payload.reports
+  return []
+}
+
 function formatShortTime(value) {
   if (!value) return null
   const date = new Date(value)
@@ -103,6 +110,180 @@ function formatQueuePreview(queuePreview = []) {
       return retryAt ? `${run.character} (${retryAt})` : run.character
     })
     .join(' • ')
+}
+
+function WclImportPanel({ enabled, writeToken }) {
+  const [reportDraft, setReportDraft] = useState('')
+  const [imports, setImports] = useState([])
+  const [status, setStatus] = useState('idle')
+  const [detail, setDetail] = useState('')
+  const [actionState, setActionState] = useState('idle')
+  const [actionDetail, setActionDetail] = useState('')
+
+  async function loadImports() {
+    setStatus('loading')
+    setDetail('')
+
+    try {
+      const res = await fetch('/api/wcl-imports')
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setStatus('error')
+        setDetail(payload.error ?? `HTTP ${res.status}`)
+        return
+      }
+
+      setImports(normalizeWclImports(payload))
+      setStatus('ok')
+    } catch (error) {
+      setStatus('error')
+      setDetail(error.message)
+    }
+  }
+
+  useEffect(() => {
+    if (!enabled) return undefined
+    loadImports()
+  }, [enabled])
+
+  async function submitImports(codes) {
+    if (!writeToken) {
+      setActionState('error')
+      setActionDetail('Unlock guild editing first to import WCL reports.')
+      return
+    }
+
+    if (!codes.length) {
+      setActionState('error')
+      setActionDetail('Enter at least one report URL or code.')
+      return
+    }
+
+    setActionState('working')
+    setActionDetail('')
+
+    try {
+      const res = await fetch('/api/wcl-imports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Write-Token': writeToken,
+        },
+        body: JSON.stringify({ reports: codes }),
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setActionState('error')
+        setActionDetail(payload.error ?? `HTTP ${res.status}`)
+        return
+      }
+
+      const importedCount = Array.isArray(payload.imported) ? payload.imported.length : codes.length
+      setActionState('ok')
+      setActionDetail(`Queued ${importedCount} report${importedCount === 1 ? '' : 's'} for import.`)
+      setReportDraft('')
+      await loadImports()
+    } catch (error) {
+      setActionState('error')
+      setActionDetail(error.message)
+    }
+  }
+
+  async function handleImportSubmit() {
+    const codes = reportDraft
+      .split(/[\n,]+/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+
+    await submitImports(codes)
+  }
+
+  async function handleReimport(reportCode) {
+    await submitImports([reportCode])
+  }
+
+  const lastLoaded = imports[0]?.updated_at ? timeAgo(Date.parse(imports[0].updated_at)) : null
+
+  return (
+    <div className="wcl-imports-panel">
+      <div className="wcl-imports-panel__header">
+        <div>
+          <h4 className="wcl-imports-panel__title">WCL Imports</h4>
+          <p className="wcl-imports-panel__subtitle">
+            Import report URL/code entries so parse and progression data can come from stored logs.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-pill"
+          onClick={loadImports}
+          disabled={status === 'loading'}
+        >
+          {status === 'loading' ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
+
+      {detail && <div className="wcl-imports-panel__message is-error">{detail}</div>}
+      {actionDetail && <div className={`wcl-imports-panel__message${actionState === 'error' ? ' is-error' : ''}`}>{actionDetail}</div>}
+      {lastLoaded && <div className="wcl-imports-panel__message">Last refreshed {lastLoaded}</div>}
+
+      <div className="wcl-imports-panel__composer">
+        <label className="wcl-imports-panel__label" htmlFor="wcl-import-input">Report URL/code</label>
+        <textarea
+          id="wcl-import-input"
+          value={reportDraft}
+          onChange={(e) => setReportDraft(e.target.value)}
+          placeholder="Paste one report URL or code per line"
+          className="wcl-imports-panel__textarea"
+        />
+        <div className="wcl-imports-panel__actions">
+          <button
+            type="button"
+            className="guild-button guild-button--primary"
+            onClick={handleImportSubmit}
+            disabled={actionState === 'working' || !reportDraft.trim()}
+          >
+            {actionState === 'working' ? 'Importing…' : 'Import reports'}
+          </button>
+          <span className="wcl-imports-panel__hint">
+            Reimport will replace the stored facts for that report.
+          </span>
+        </div>
+      </div>
+
+      <div className="wcl-imports-panel__list">
+        {imports.length > 0 ? imports.map((report) => {
+          const reportCode = report.report_code ?? report.code ?? report.id ?? ''
+          const title = report.title ?? report.zone_name ?? reportCode
+          const statusLabel = report.import_status ?? report.status ?? 'unknown'
+          const lastUpdated = report.updated_at ? timeAgo(Date.parse(report.updated_at)) : null
+
+          return (
+            <div key={reportCode || `${title}-${report.raid_night_date ?? ''}`} className="wcl-import-card">
+              <div className="wcl-import-card__copy">
+                <strong>{title}</strong>
+                <span>{report.raid_night_date ? `${report.raid_night_date} · ` : ''}{report.zone_name ?? 'Unknown zone'}</span>
+                <span>Code {reportCode || 'n/a'} · {statusLabel}{lastUpdated ? ` · updated ${lastUpdated}` : ''}</span>
+                {report.last_error && <span className="wcl-import-card__error">{report.last_error}</span>}
+              </div>
+              <button
+                type="button"
+                className="btn-pill"
+                onClick={() => handleReimport(report.source_url ?? reportCode)}
+                disabled={!writeToken}
+              >
+                Reimport
+              </button>
+            </div>
+          )
+        }) : (
+          <p className="wcl-imports-panel__empty">
+            No imported reports yet. Add a report URL or code above.
+          </p>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function DroptimizerAutomationStatus({ enabled }) {
@@ -959,6 +1140,8 @@ export default function Settings({ open, onClose, guild, onGuildChange, writeTok
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                 Secrets live in Vercel → Project Settings → Environment Variables. Never stored in the browser.
               </p>
+              <WclImportPanel enabled={open} writeToken={writeToken} />
+              <div style={{ height: '1rem' }} />
               <ApiStatusRow
                 label="Blizzard — character"
                 endpoint={`/api/blizzard?action=character&region=${localGuild.region}&realm=${encodeURIComponent(localGuild.realm)}&name=${encodeURIComponent(localGuild.members[0]?.name ?? 'whooplol')}`}

@@ -21,6 +21,7 @@ const VALID_REGIONS = new Set(['eu', 'us', 'kr', 'tw'])
 const OVERVIEW_EXPANSION_ID = 'midnight'
 const OVERVIEW_EXPANSION_NAME = 'Midnight'
 const OVERVIEW_DIFFICULTY_SLUG = 'heroic'
+const PROFILE_PAGE_LOCALE = 'en-gb'
 
 function isSafeQueryValue(value) {
   const normalized = String(value ?? '').normalize('NFC').trim()
@@ -98,6 +99,7 @@ function buildEmptyRaidSummary({ name = '', realm = '', lastUpdated = null } = {
     name,
     realm,
     lastUpdated,
+    guildName: null,
     expansionId: OVERVIEW_EXPANSION_ID,
     expansionName: OVERVIEW_EXPANSION_NAME,
     difficulty: OVERVIEW_DIFFICULTY_SLUG,
@@ -125,6 +127,7 @@ function normalizeRaidSummary(payload) {
     realm: character?.realm?.name ?? '',
     lastUpdated: character?.lastUpdatedTimestamp?.iso8601 ?? null,
   })
+  summary.guildName = character?.guild?.name ?? null
 
   const expansions = payload?.expansions ?? payload?.raids?.expansions ?? []
   const midnight = expansions.find((expansion) => expansion?.id === OVERVIEW_EXPANSION_ID)
@@ -158,6 +161,28 @@ function normalizeRaidSummary(payload) {
   summary.bossCount = summary.raids.reduce((sum, raid) => sum + raid.bossCount, 0)
 
   return summary
+}
+
+function extractProfileRaidState(html) {
+  const marker = 'var characterProfileInitialState = '
+  const start = html.indexOf(marker)
+  if (start === -1) return null
+
+  const afterMarker = html.slice(start + marker.length)
+  const payloadStart = afterMarker.indexOf('{"character":')
+  const payloadEnd = afterMarker.indexOf(',"variableName":"characterProfileInitialState"')
+
+  if (payloadStart === -1 || payloadEnd === -1 || payloadEnd <= payloadStart) {
+    return null
+  }
+
+  const json = `${afterMarker.slice(payloadStart, payloadEnd)}}`
+
+  try {
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
 }
 
 function isDebugRequest(req) {
@@ -197,7 +222,23 @@ async function fetchRaids(region, realm, name, token) {
   }
 
   const payload = await res.json()
-  return normalizeRaidSummary(payload)
+  const summary = normalizeRaidSummary(payload)
+
+  if (summary.bossCount > 0) {
+    return summary
+  }
+
+  const profileRes = await fetch(
+    `https://worldofwarcraft.blizzard.com/${PROFILE_PAGE_LOCALE}/character/${region}/${realmSlug}/${nameSlug}/pve/raids`
+  )
+
+  if (!profileRes.ok) return summary
+
+  const html = await profileRes.text()
+  const pageState = extractProfileRaidState(html)
+  if (!pageState) return summary
+
+  return normalizeRaidSummary(pageState)
 }
 
 export default async function handler(req, res) {

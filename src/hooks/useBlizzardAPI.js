@@ -8,7 +8,7 @@ function cacheKey(region, realm, name) {
 }
 
 function raidsCacheKey(region, realm, name) {
-  return `blizzard-raids:${buildCharacterStorageKey(region, realm, name)}`
+  return `blizzard-raids:v2:${buildCharacterStorageKey(region, realm, name)}`
 }
 
 function readCache(key) {

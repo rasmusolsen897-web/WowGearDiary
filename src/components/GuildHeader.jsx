@@ -24,46 +24,28 @@ export default function GuildHeader({ guild, onSettingsClick }) {
   const stats = summarizeRoster(guild?.members ?? [])
 
   return (
-    <header className="guild-hero">
-      <div className="guild-hero__inner app-container">
-        <div className="guild-hero__copy">
-          <div className="guild-hero__eyebrow">Wow Diary</div>
-          <h1 className="guild-hero__title font-display">{title}</h1>
-          {sub && <p className="guild-hero__subtitle">{sub}</p>}
-
-          <div className="guild-hero__stats">
-            <div className="guild-hero__stat">
-              <span className="guild-hero__stat-value">{stats.mains}</span>
-              <span className="guild-hero__stat-label">Mains</span>
-            </div>
-            <div className="guild-hero__stat">
-              <span className="guild-hero__stat-value">{stats.healers + stats.tanks}</span>
-              <span className="guild-hero__stat-label">Core Roles</span>
-            </div>
-            <div className="guild-hero__stat">
-              <span className="guild-hero__stat-value">{stats.alts}</span>
-              <span className="guild-hero__stat-label">Alts</span>
-            </div>
-          </div>
+    <header className="guild-header">
+      <div className="guild-header__inner app-shell">
+        <div className="guild-header__identity">
+          <p className="guild-header__kicker">Guild Dashboard</p>
+          <h1 className="guild-header__title">{title}</h1>
+          {sub && <p className="guild-header__subtitle">{sub}</p>}
         </div>
 
-        <div className="guild-hero__panel">
-          <div className="guild-hero__panel-grid">
-            <div className="guild-hero__panel-item">
-              <span className="guild-hero__panel-kicker">Roster Shape</span>
-              <strong>{stats.tanks} tank · {stats.healers} healer · {stats.dps} dps</strong>
-            </div>
-            <div className="guild-hero__panel-item guild-hero__panel-item--muted">
-              <span className="guild-hero__panel-kicker">Next Phase</span>
-              <strong>Weekly heroic progress and WCL widgets</strong>
-            </div>
+        <div className="guild-header__summary">
+          <div className="guild-header__stat">
+            <span className="guild-header__stat-value">{stats.mains}</span>
+            <span className="guild-header__stat-label">Mains</span>
           </div>
-
-          <button
-            onClick={onSettingsClick}
-            title="Settings"
-            className="guild-hero__settings"
-          >
+          <div className="guild-header__stat">
+            <span className="guild-header__stat-value">{stats.tanks + stats.healers}</span>
+            <span className="guild-header__stat-label">Core Roles</span>
+          </div>
+          <div className="guild-header__stat">
+            <span className="guild-header__stat-value">{stats.alts}</span>
+            <span className="guild-header__stat-label">Alts</span>
+          </div>
+          <button type="button" className="guild-header__settings" onClick={onSettingsClick}>
             Settings
           </button>
         </div>

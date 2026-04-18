@@ -431,6 +431,13 @@ test('raids response returns an empty Midnight heroic summary when encounters da
       }
     }
 
+    if (String(url).includes('worldofwarcraft.blizzard.com')) {
+      return {
+        ok: true,
+        text: async () => `<!DOCTYPE html><html><body><script type="text/javascript" id="character-profile-mount-initial-state">var characterProfileInitialState = {"character":{"guild":{"name":"CAMFTW"},"lastUpdatedTimestamp":{"iso8601":"2026-04-18T18:37:41Z"},"name":"Whooplol","realm":{"name":"Tarren Mill"}},"raids":{"expansions":[{"id":"midnight","name":"Midnight","raids":[{"id":"the-voidspire","name":"The Voidspire","difficulties":[{"difficulty":{"slug":"heroic","name":"Heroic"},"progress":{"slug":"completed","name":"Completed"},"total":6,"bosses":[{"name":"Imperator Averzian","killCount":3},{"name":"Vorasius","killCount":3},{"name":"Fallen-King Salhadaar","killCount":3},{"name":"Vaelgor & Ezzorak","killCount":3},{"name":"Lightblinded Vanguard","killCount":3},{"name":"Crown of the Cosmos","killCount":2}]}]},{"id":"the-dreamrift","name":"The Dreamrift","difficulties":[{"difficulty":{"slug":"heroic","name":"Heroic"},"progress":{"slug":"completed","name":"Completed"},"total":1,"bosses":[{"name":"Chimaerus the Undreamt God","killCount":3}]}]},{"id":"march-on-queldanas","name":"March on Quel'Danas","difficulties":[{"difficulty":{"slug":"heroic","name":"Heroic"},"progress":{"slug":"not-started","name":"Not Started"},"total":2,"bosses":[{"name":"Belo'ren, Child of Al'ar","killCount":0},{"name":"Midnight Falls","killCount":0}]}]}]}]},"variableName":"characterProfileInitialState"}]};</script></body></html>`,
+      }
+    }
+
     throw new Error(`Unexpected fetch URL: ${url}`)
   }
 
@@ -449,9 +456,24 @@ test('raids response returns an empty Midnight heroic summary when encounters da
     assert.equal(res.body.expansionId, 'midnight')
     assert.equal(res.body.expansionName, 'Midnight')
     assert.equal(res.body.difficulty, 'heroic')
-    assert.equal(res.body.progressedBossCount, 0)
-    assert.equal(res.body.bossCount, 0)
-    assert.deepEqual(res.body.raids, [])
+    assert.equal(res.body.lastUpdated, '2026-04-18T18:37:41Z')
+    assert.equal(res.body.progressedBossCount, 7)
+    assert.equal(res.body.bossCount, 9)
+    assert.equal(res.body.guildName, 'CAMFTW')
+    assert.deepEqual(
+      res.body.raids.map((raid) => ({
+        id: raid.id,
+        name: raid.name,
+        progressedBossCount: raid.progressedBossCount,
+        bossCount: raid.bossCount,
+        progress: raid.progress,
+      })),
+      [
+        { id: 'the-voidspire', name: 'The Voidspire', progressedBossCount: 6, bossCount: 6, progress: 'completed' },
+        { id: 'the-dreamrift', name: 'The Dreamrift', progressedBossCount: 1, bossCount: 1, progress: 'completed' },
+        { id: 'march-on-queldanas', name: "March on Quel'Danas", progressedBossCount: 0, bossCount: 2, progress: 'not-started' },
+      ],
+    )
   } finally {
     global.fetch = originalFetch
 
