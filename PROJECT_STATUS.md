@@ -1,5 +1,5 @@
 # WowGearDiary Project Status
-_Last updated: 2026-04-18_
+_Last updated: 2026-04-19_
 
 ## Current State
 
@@ -46,6 +46,7 @@ Storage
 - Blizzard profile fetches still feed `ilvl_snapshots`
 - Both build targets remain part of the verification baseline
 - Droptimizer automation surfaces and cron paths are still present
+- Live Midnight warehouse handling now recognizes zone `46` (`VS / DR / MQD`) heroic logs at difficulty `4` while preserving legacy fixture compatibility with heroic `5`
 
 ## Active Gaps
 
@@ -54,6 +55,7 @@ Storage
 - Apply `docs/supabase-wcl-warehouse.sql` in production if it has not already been run
 - Import enough historical WCL reports to populate real parse/progression history in the new warehouse tables
 - Validate the manual WCL import flow against live reports in production and confirm `wcl_reports`, `wcl_fights`, `wcl_fight_players`, and `wcl_loot_events` fill correctly
+- Reimport older WCL reports after warehouse normalization changes so `wcl_fight_players.actor_key` rows match current roster identity normalization
 
 ### Next quality improvements
 
@@ -76,11 +78,13 @@ Storage
 - Styling remains hand-rolled CSS
 - Third-party API access stays server-side in `api/`
 - The runtime dashboard uses stored WCL imports, not browser fanout, for parse/progression surfaces
+- Current live Midnight reports come from WCL zone `46` (`VS / DR / MQD`) where heroic fights use difficulty `4`
 
 ## Known Tech Debt
 
 - `@vercel/kv` is deprecated and should eventually move to `@upstash/redis`
 - Legacy WCL code paths still exist for admin compatibility and may need cleanup once the warehouse path is fully proven
+- Parse leaderboards can still remain empty for some reports because WCL `report.rankings(...)` may return no parse data even when progress and attendance warehouse rows are present
 - Droptimizer submit/collect is still a separate unstable stream of work and needs live confidence before being treated as settled
 - Character updates still sync the whole members array instead of a finer-grained delta
 

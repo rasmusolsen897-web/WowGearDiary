@@ -188,6 +188,69 @@ test('buildWclWarehouseDocument flattens nested WCL role rankings into fight-pla
   assert.equal(document.lootEvents[0].item_name, "Champion's Crest")
 })
 
+test('buildWclWarehouseDocument keeps live heroic imports actor-key compatible when rankings are unavailable', () => {
+  const document = buildWclWarehouseDocument('CywHV6b2ptL9WJrF', {
+    code: 'CywHV6b2ptL9WJrF',
+    title: 'week 4 - Camftw lets go',
+    visibility: 'private',
+    startTime: 1770000000000,
+    endTime: 1770003600000,
+    revision: 8,
+    segments: 1,
+    region: { code: 'eu', name: 'Europe' },
+    zone: { id: 46, name: 'VS / DR / MQD' },
+    guild: {
+      id: 7,
+      name: 'CAMFTW',
+      server: {
+        id: 11,
+        name: 'Tarren Mill',
+        slug: 'tarren-mill',
+        region: { code: 'EU', name: 'Europe' },
+      },
+    },
+    owner: { id: 12, name: 'Whooplol' },
+    masterData: {
+      actors: [
+        { id: 1, name: 'Whooplol', type: 'Player', subType: 'Warrior', server: 'Tarren Mill', gameID: 1 },
+        { id: 2, name: 'Mufuzu', type: 'Player', subType: 'Priest', server: 'Tarren Mill', gameID: 2 },
+      ],
+    },
+    fights: [
+      {
+        id: 17,
+        name: 'Vaelgor & Ezzorak',
+        encounterID: 3178,
+        difficulty: 4,
+        startTime: 1770000100000,
+        endTime: 1770000200000,
+        kill: false,
+        size: 20,
+        fightPercentage: 43.27,
+        bossPercentage: 43.27,
+        completeRaid: false,
+        inProgress: false,
+        friendlyPlayers: [1, 2],
+        enemyPlayers: [99],
+      },
+    ],
+  }, {
+    raidNightDate: '2026-04-16',
+    fightRankingsByFightId: {},
+    lootEvents: [],
+  })
+
+  assert.equal(document.report.zone_id, 46)
+  assert.equal(document.report.zone_name, 'VS / DR / MQD')
+  assert.equal(document.fightPlayers.length, 2)
+  assert.deepEqual(document.fightPlayers.map((row) => row.actor_key), [
+    'eu:tarren-mill:whooplol',
+    'eu:tarren-mill:mufuzu',
+  ])
+  assert.equal(document.fightPlayers[0].parse_percent, null)
+  assert.equal(document.fightPlayers[0].raid_night_date, '2026-04-16')
+})
+
 test('buildGuildDashboardPayload stays heroic-only and returns the fixed eight-boss Midnight rail', () => {
   const payload = buildGuildDashboardPayload({
     guild: { name: 'CAMFTW', realm: 'Tarren Mill', region: 'Europe' },
@@ -263,4 +326,44 @@ test('buildGuildDashboardPayload stays heroic-only and returns the fixed eight-b
   assert.equal(payload.attendance.length, 2)
   assert.deepEqual(payload.attendance.find((member) => member.name === 'Whooplol')?.nights, [false, false, false, false, true, true])
   assert.deepEqual(payload.attendance.find((member) => member.name === 'Mufuzu')?.nights, [false, false, false, false, true, false])
+})
+
+test('buildGuildDashboardPayload accepts live heroic difficulty 4 and keeps progress or attendance visible without parses', () => {
+  const payload = buildGuildDashboardPayload({
+    guild: { name: 'CAMFTW', realm: 'Tarren Mill', region: 'EU' },
+    reports: [
+      { report_code: 'LIVE1', zone_id: 46, zone_name: 'VS / DR / MQD', raid_night_date: '2026-04-09', import_status: 'ready' },
+      { report_code: 'LIVE2', zone_id: 46, zone_name: 'VS / DR / MQD', raid_night_date: '2026-04-16', import_status: 'ready' },
+    ],
+    fights: [
+      { report_code: 'LIVE1', fight_id: 1, encounter_id: 3176, encounter_name: 'Imperator Averzian', difficulty: 4, kill: true, boss_percentage: 0.03, fight_percentage: 0.03, raid_night_date: '2026-04-09' },
+      { report_code: 'LIVE1', fight_id: 2, encounter_id: 0, encounter_name: 'Darkspawn', difficulty: null, kill: false, boss_percentage: null, fight_percentage: null, raid_night_date: '2026-04-09' },
+      { report_code: 'LIVE2', fight_id: 3, encounter_id: 3178, encounter_name: 'Vaelgor & Ezzorak', difficulty: 4, kill: false, boss_percentage: 43.27, fight_percentage: 43.27, raid_night_date: '2026-04-16' },
+      { report_code: 'LIVE2', fight_id: 4, encounter_id: 1199, encounter_name: 'Training Dummy', difficulty: 10, kill: true, boss_percentage: 100, fight_percentage: 100, raid_night_date: '2026-04-16' },
+    ],
+    fightPlayers: [
+      { report_code: 'LIVE1', fight_id: 1, raid_night_date: '2026-04-09', kill: true, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: null, role: 'dps', class_name: 'Warrior', spec_name: 'Arms' },
+      { report_code: 'LIVE1', fight_id: 1, raid_night_date: '2026-04-09', kill: true, actor_key: 'eu:tarren-mill:mufuzu', actor_name: 'Mufuzu', parse_percent: null, role: 'healer', class_name: 'Priest', spec_name: 'Holy' },
+      { report_code: 'LIVE2', fight_id: 3, raid_night_date: '2026-04-16', kill: false, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: null, role: 'dps', class_name: 'Warrior', spec_name: 'Arms' },
+      { report_code: 'LIVE2', fight_id: 3, raid_night_date: '2026-04-16', kill: false, actor_key: 'eu:tarren-mill:mufuzu', actor_name: 'Mufuzu', parse_percent: null, role: 'healer', class_name: 'Priest', spec_name: 'Holy' },
+      { report_code: 'LIVE2', fight_id: 4, raid_night_date: '2026-04-16', kill: true, actor_key: 'eu:tarren-mill:whooplol', actor_name: 'Whooplol', parse_percent: 99.9, role: 'dps', class_name: 'Warrior', spec_name: 'Arms' },
+    ],
+    roster: [
+      { name: 'Whooplol', is_main: true, role: 'dps', class: 'Warrior', spec: 'Arms', avg_ilvl: 712, realm: 'Tarren Mill', region: 'Europe' },
+      { name: 'Mufuzu', is_main: true, role: 'healer', class: 'Priest', spec: 'Holy', avg_ilvl: 710, realm: 'Tarren Mill', region: 'EU' },
+    ],
+  })
+
+  assert.equal(payload.summary.raid_night_count, 2)
+  assert.equal(payload.summary.latest_raid_night_date, '2026-04-16')
+  assert.equal(payload.progress.progressed_boss_count, 1)
+  assert.equal(payload.progress.bosses.find((boss) => boss.name === 'Imperator Averzian')?.kills, 1)
+  assert.equal(payload.progress.bosses.find((boss) => boss.name === 'Vaelgor & Ezzorak')?.pulls, 1)
+  assert.deepEqual(payload.charts.parseTrend, [
+    { raid_night_date: '2026-04-09', avg_parse_pct: null },
+    { raid_night_date: '2026-04-16', avg_parse_pct: null },
+  ])
+  assert.equal(payload.leaderboard.length, 0)
+  assert.deepEqual(payload.attendance.find((member) => member.name === 'Whooplol')?.nights, [false, false, false, false, true, true])
+  assert.deepEqual(payload.attendance.find((member) => member.name === 'Mufuzu')?.nights, [false, false, false, false, true, true])
 })

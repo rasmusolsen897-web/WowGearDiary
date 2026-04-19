@@ -3,7 +3,11 @@ import { MIDNIGHT_HEROIC_BOSS_ORDER, MIDNIGHT_TIER_ZONE_NAME } from './_heroicPr
 import { buildIdentitySlug, normalizeIdentityName } from '../src/utils/characterIdentity.js'
 
 const DEFAULT_TIME_ZONE = 'Europe/Copenhagen'
-const HEROIC_DIFFICULTY = 5
+const LEGACY_HEROIC_DIFFICULTY = 5
+const MIDNIGHT_HEROIC_DIFFICULTY_BY_ZONE_ID = new Map([
+  [46, 4],
+  [48, 5],
+])
 const REGION_ALIASES = new Map([
   ['eu', 'eu'],
   ['europe', 'eu'],
@@ -20,6 +24,13 @@ const REGION_ALIASES = new Map([
 
 function normalizeText(value) {
   return String(value ?? '').normalize('NFC').trim()
+}
+
+function normalizeEncounterIdentity(value) {
+  return normalizeText(value)
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
 }
 
 function normalizeSlugPart(value) {
@@ -414,17 +425,66 @@ function buildProgressRows(reportCode, fights = []) {
   })
 }
 
-const MIDNIGHT_HEROIC_BOSS_INDEX = new Map(
-  MIDNIGHT_HEROIC_BOSS_ORDER.map((name, index) => [normalizeIdentityName(name), { index, name }]),
-)
+const MIDNIGHT_HEROIC_BOSS_ALIAS_INDEX = new Map([
+  ...MIDNIGHT_HEROIC_BOSS_ORDER.map((name) => [normalizeEncounterIdentity(name), name]),
+  [normalizeEncounterIdentity('Chimaerus, the Undreamt God'), 'Chimaerus the Undreamt God'],
+  [normalizeEncounterIdentity('Ezzorak / Vaelgor'), 'Vaelgor & Ezzorak'],
+])
 
-function isHeroicFight(fight = {}) {
-  return Number(fight?.difficulty) === HEROIC_DIFFICULTY
+function getHeroicDifficultyForReport(report = {}) {
+  const zoneId = Number(report?.zone_id ?? report?.zoneID ?? report?.zone?.id)
+  if (Number.isFinite(zoneId) && MIDNIGHT_HEROIC_DIFFICULTY_BY_ZONE_ID.has(zoneId)) {
+    return MIDNIGHT_HEROIC_DIFFICULTY_BY_ZONE_ID.get(zoneId)
+  }
+
+  const zoneName = normalizeIdentityName(report?.zone_name ?? report?.zoneName ?? report?.zone?.name)
+  if (zoneName === normalizeIdentityName('VS / DR / MQD')) return 4
+
+  return LEGACY_HEROIC_DIFFICULTY
+}
+
+function isHeroicFight(fight = {}, report = {}) {
+  const difficulty = Number(fight?.difficulty)
+  return Number.isFinite(difficulty) && difficulty === getHeroicDifficultyForReport(report)
 }
 
 function getMidnightHeroicBossName(encounterName) {
-  const match = MIDNIGHT_HEROIC_BOSS_INDEX.get(normalizeIdentityName(encounterName))
-  return match?.name ?? null
+  return MIDNIGHT_HEROIC_BOSS_ALIAS_INDEX.get(normalizeEncounterIdentity(encounterName)) ?? null
+}
+
+function isTrackedMidnightBossFight(fight = {}, report = {}) {
+  if (!isHeroicFight(fight, report)) return false
+  if (Number(fight?.encounter_id ?? fight?.encounterID ?? null) === 0) return false
+  return Boolean(getMidnightHeroicBossName(fight?.encounter_name ?? fight?.name))
+}
+
+function summarizeDifficultyCounts(fights = []) {
+  const counts = fights.reduce((acc, fight) => {
+    const key = fight?.difficulty == null ? 'null' : String(fight.difficulty)
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+
+  return Object.entries(counts)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([difficulty, count]) => ({ difficulty, count }))
+}
+
+function buildWclImportDiagnostics(reportCode, report, document) {
+  const bossFightCount = document.fights.filter((fight) => isTrackedMidnightBossFight(fight, document.report)).length
+  const parsePercentCount = document.fightPlayers.filter((row) => row.parse_percent != null).length
+
+  return {
+    reportCode,
+    zoneId: report?.zone?.id ?? document.report?.zone_id ?? null,
+    zoneName: report?.zone?.name ?? document.report?.zone_name ?? null,
+    heroicDifficulty: getHeroicDifficultyForReport(report ?? document.report),
+    fightCount: document.fights.length,
+    fightDifficulties: summarizeDifficultyCounts(document.fights),
+    trackedBossFightCount: bossFightCount,
+    fightPlayerCount: document.fightPlayers.length,
+    parsePercentCount,
+  }
 }
 
 function buildHeroicProgressRows(fights = [], latestRaidDate = null) {
@@ -439,9 +499,6 @@ function buildHeroicProgressRows(fights = [], latestRaidDate = null) {
   )
 
   for (const fight of fights) {
-    if (!isHeroicFight(fight)) continue
-    if (Number(fight?.encounter_id) === 0) continue
-
     const bossName = getMidnightHeroicBossName(fight?.encounter_name)
     if (!bossName) continue
 
@@ -719,12 +776,12 @@ export function buildGuildDashboardPayload({
   const reportByCode = new Map(readyReports.map((report) => [report.report_code, report]))
   const fightRows = normalizeFightRows(fights).filter((fight) => reportByCode.has(fight.report_code))
   const fightByKey = new Map(fightRows.map((fight) => [`${fight.report_code}:${fight.fight_id}`, fight]))
-  const heroicFightKeys = new Set(
+  const trackedFightKeys = new Set(
     fightRows
-      .filter((fight) => isHeroicFight(fight))
+      .filter((fight) => isTrackedMidnightBossFight(fight, reportByCode.get(fight.report_code)))
       .map((fight) => `${fight.report_code}:${fight.fight_id}`),
   )
-  const heroicFightRows = fightRows.filter((fight) => heroicFightKeys.has(`${fight.report_code}:${fight.fight_id}`))
+  const heroicFightRows = fightRows.filter((fight) => trackedFightKeys.has(`${fight.report_code}:${fight.fight_id}`))
   const fightPlayerRows = normalizeFightPlayerRows(fightPlayers)
     .filter((row) => reportByCode.has(row.report_code))
     .map((row) => {
@@ -735,7 +792,7 @@ export function buildGuildDashboardPayload({
         raid_night_date: row.raid_night_date ?? fight?.raid_night_date ?? reportByCode.get(row.report_code)?.raid_night_date ?? null,
       }
     })
-    .filter((row) => heroicFightKeys.has(`${row.report_code}:${row.fight_id}`))
+    .filter((row) => trackedFightKeys.has(`${row.report_code}:${row.fight_id}`))
   const lootRows = normalizeLootRows(lootEvents).filter((row) => reportByCode.has(row.report_code))
   const rosterRows = (Array.isArray(roster) ? roster : []).map((row) => ({
     name: normalizeText(row.name) || null,
@@ -1046,17 +1103,21 @@ export async function fetchWclWarehouseImport(reportInput) {
 
   for (const fight of fights) {
     if (fight?.id == null) continue
+    if (!isTrackedMidnightBossFight(fight, report)) continue
     fightRankingsByFightId[fight.id] = await fetchFightRankings(reportCode, fight)
   }
+
+  const document = buildWclWarehouseDocument(reportCode, report, {
+    sourceUrl: typeof reportInput === 'string' ? reportInput : null,
+    fightRankingsByFightId,
+    lootEvents: [],
+  })
+  console.info('[wcl-warehouse] import diagnostics', JSON.stringify(buildWclImportDiagnostics(reportCode, report, document)))
 
   return {
     reportCode,
     report,
-    document: buildWclWarehouseDocument(reportCode, report, {
-      sourceUrl: typeof reportInput === 'string' ? reportInput : null,
-      fightRankingsByFightId,
-      lootEvents: [],
-    }),
+    document,
   }
 }
 
