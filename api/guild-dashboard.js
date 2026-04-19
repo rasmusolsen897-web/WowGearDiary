@@ -46,7 +46,7 @@ async function loadDashboardRows(supabase, guild = null) {
   const [charactersRes, ilvlRes, reportsRes, fightsRes, fightPlayersRes, lootRes] = await Promise.all([
     supabase.from('characters').select('name, class, spec, role, is_main, realm'),
     supabase.from('ilvl_snapshots').select('character_name, avg_ilvl, snapped_at'),
-    supabase.from('wcl_reports').select('report_code, source_url, title, guild_name, guild_server_slug, guild_server_region, zone_name, raid_night_date, import_status, last_error, imported_at, updated_at'),
+    supabase.from('wcl_reports').select('report_code, source_url, title, guild_name, guild_server_slug, guild_server_region, zone_id, zone_name, raid_night_date, import_status, last_error, imported_at, updated_at'),
     supabase.from('wcl_fights').select('report_code, fight_id, encounter_id, encounter_name, difficulty, kill, size, start_time, end_time, average_item_level, boss_percentage, fight_percentage, complete_raid, in_progress, wipe_called_time, raid_night_date'),
     supabase.from('wcl_fight_players').select('report_code, fight_id, actor_key, actor_id, actor_name, actor_realm, actor_region, class_name, spec_name, role, parse_percent, dps, item_level, kill, raid_night_date'),
     supabase.from('wcl_loot_events').select('event_uid, report_code, fight_id, actor_key, actor_name, item_id, item_name, item_level, quality, encounter_name, occurred_at, is_tier'),

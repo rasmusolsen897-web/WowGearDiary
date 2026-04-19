@@ -43,6 +43,8 @@ No browser code should call Blizzard, Warcraft Logs, Raidbots, or Supabase direc
 
 The runtime dashboard should not depend on live browser fanout to Warcraft Logs. Stored WCL imports in Supabase are the source of truth for parse, progression, attendance, loot, and roster parse-trend views. `/api/wcl` remains legacy/admin-compatible only.
 
+Midnight warehouse parsing is report-aware rather than globally difficulty-aware. Live Midnight reports in Warcraft Logs zone `46` (`VS / DR / MQD`) currently use heroic difficulty ID `4`, while legacy fixtures and older assumptions in the repo may still reference heroic as `5`. Older warehouse rows imported before the actor-key normalization fix should be reimported so `wcl_fight_players.actor_key` matches current roster normalization.
+
 The Raidbots Droptimizer path exists in both interactive and automated forms. The cron-based submit/collect split is code-complete but should be treated as unstable until the live Eylac end-to-end flow is proven.
 
 ### Data Ownership
