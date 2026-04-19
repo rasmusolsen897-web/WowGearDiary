@@ -1,19 +1,56 @@
-import { useEffect, useMemo, useState } from 'react'
-import { timeAgo } from '../utils/timeAgo.js'
+import { useEffect, useId, useMemo, useState } from 'react'
+
+const DASHBOARD_TWEAKS_KEY = 'wow-gear-diary:dashboard-tweaks'
+const DEFAULT_TWEAKS = {
+  rolecolors: 'on',
+  density: 'balanced',
+  intensity: 'inked',
+}
+
+const MIDNIGHT_BOSS_ORDER = [
+  'Imperator Averzian',
+  "Belo'ren, Child of Al'ar",
+  'Fallen-King Salhadaar',
+  'Crown of the Cosmos',
+  'Vorasius',
+  'Vaelgor & Ezzorak',
+  'Midnight Falls',
+  'Chimaerus the Undreamt God',
+]
 
 const EMPTY_DASHBOARD = {
   guild: { name: '', realm: '', region: '' },
   charts: { parseTrend: [], ilvlTrend: [] },
-  progress: { zoneName: '', progressedBossCount: 0, bossCount: 0, deltaThisWeek: 0, bosses: [] },
+  progress: {
+    zoneName: 'Heroic Midnight',
+    progressedBossCount: 0,
+    bossCount: MIDNIGHT_BOSS_ORDER.length,
+    deltaThisWeek: 0,
+    bosses: MIDNIGHT_BOSS_ORDER.map((name) => ({
+      name,
+      pulls: 0,
+      kills: 0,
+      bestPercent: 100,
+    })),
+  },
   leaderboard: [],
   attendance: [],
-  loot: [],
-  roster: [],
+  summary: {
+    raid_night_count: 0,
+    latest_raid_night_date: null,
+  },
 }
 
 function numberOrNull(value) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeRoleTone(role) {
+  const normalized = String(role ?? 'dps').trim().toLowerCase()
+  if (normalized.startsWith('tank')) return 'tank'
+  if (normalized.startsWith('heal')) return 'heal'
+  return 'dps'
 }
 
 function formatRealmLabel(realm) {
@@ -31,34 +68,84 @@ function formatRaidDate(value) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-function formatNumber(value, digits = 0) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return '—'
-  return parsed.toFixed(digits)
-}
-
 function formatPercent(value) {
   const parsed = numberOrNull(value)
-  if (parsed === null) return '—'
-  return `${Math.round(parsed)}%`
+  if (parsed == null) return '--'
+  return `${Math.round(parsed)}`
 }
 
-function getMemberTrend(member) {
-  const trend = member?.parseTrend ?? member?.history ?? member?.sparkline ?? []
-  return Array.isArray(trend) ? trend.map((entry) => numberOrNull(entry?.value ?? entry?.pct ?? entry)).filter((entry) => entry !== null) : []
+function formatChange(current, previous, suffix = '') {
+  const currentValue = numberOrNull(current)
+  const previousValue = numberOrNull(previous)
+  if (currentValue == null || previousValue == null) return null
+  const delta = currentValue - previousValue
+  const prefix = delta >= 0 ? '+' : ''
+  return `${prefix}${Math.round(delta)}${suffix}`
 }
 
-function buildFallbackRoster(guild) {
-  return (guild?.members ?? []).map((member) => ({
-    name: member?.name ?? 'Unknown',
-    className: member?.class ?? '',
-    specName: member?.spec ?? '',
-    role: member?.role ?? 'dps',
-    isMain: member?.isMain !== false,
-    avgIlvl: numberOrNull(member?.avgIlvl ?? member?.ilvl),
-    lastRaidParsePct: numberOrNull(member?.lastRaidParsePct ?? member?.parsePct ?? member?.parse),
-    parseTrend: getMemberTrend(member),
-  }))
+function formatIlvlMeta(points = []) {
+  if (!points.length) return 'No item level snapshots yet'
+  const first = numberOrNull(points[0]?.avgIlvl)
+  const last = numberOrNull(points.at(-1)?.avgIlvl)
+  if (first == null || last == null) return 'No item level snapshots yet'
+  const delta = formatChange(last, first)
+  return `${Math.round(first)} -> ${Math.round(last)}${delta ? ` · ${delta}` : ''}`
+}
+
+function formatParseMeta(points = []) {
+  if (!points.length) return 'last 12 raids'
+  const first = numberOrNull(points[0]?.avgParsePct)
+  const last = numberOrNull(points.at(-1)?.avgParsePct)
+  const delta = formatChange(last, first, ' pts')
+  return `last ${points.length} raids${delta ? ` · ${delta}` : ''}`
+}
+
+function parseColor(value) {
+  const parsed = numberOrNull(value)
+  if (parsed == null) return 'var(--ink-3)'
+  if (parsed >= 95) return '#e268a8'
+  if (parsed >= 90) return '#a35bc7'
+  if (parsed >= 75) return '#ff8000'
+  if (parsed >= 50) return '#1eff00'
+  return 'var(--ink-3)'
+}
+
+function getBossFill(boss) {
+  const pulls = numberOrNull(boss?.pulls) ?? 0
+  const kills = numberOrNull(boss?.kills) ?? 0
+  const bestPercent = numberOrNull(boss?.bestPercent)
+
+  if (kills > 0) return 100
+  if (pulls <= 0 || bestPercent == null) return 0
+  return Math.max(0, Math.min(100, 100 - bestPercent))
+}
+
+function getBossTone(boss) {
+  if ((numberOrNull(boss?.kills) ?? 0) > 0) return 'is-good'
+  if ((numberOrNull(boss?.pulls) ?? 0) > 0 && (numberOrNull(boss?.bestPercent) ?? 100) <= 25) return 'is-warn'
+  return 'is-muted'
+}
+
+function applyBodyTweaks(tweaks) {
+  if (typeof document === 'undefined') return
+  document.body.dataset.rolecolors = tweaks.rolecolors
+  document.body.dataset.density = tweaks.density
+  document.body.dataset.intensity = tweaks.intensity
+}
+
+function loadTweaks() {
+  if (typeof window === 'undefined') return DEFAULT_TWEAKS
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DASHBOARD_TWEAKS_KEY) || '{}')
+    return {
+      rolecolors: parsed.rolecolors === 'off' ? 'off' : 'on',
+      density: ['compact', 'balanced', 'spacious'].includes(parsed.density) ? parsed.density : 'balanced',
+      intensity: parsed.intensity === 'plain' ? 'plain' : 'inked',
+    }
+  } catch {
+    return DEFAULT_TWEAKS
+  }
 }
 
 function buildFallbackDashboard(guild) {
@@ -69,43 +156,46 @@ function buildFallbackDashboard(guild) {
       realm: guild?.realm ?? '',
       region: guild?.region ?? '',
     },
-    roster: buildFallbackRoster(guild),
   }
 }
 
-function normalizeRosterRow(row) {
-  if (!row || typeof row !== 'object') return null
-  return {
-    name: row.name ?? row.actor_name ?? 'Unknown',
-    className: row.className ?? row.class_name ?? row.class ?? '',
-    specName: row.specName ?? row.spec_name ?? row.spec ?? '',
-    role: row.role ?? 'dps',
-    isMain: row.isMain ?? row.is_main ?? true,
-    avgIlvl: numberOrNull(row.avgIlvl ?? row.average_item_level ?? row.item_level),
-    lastRaidParsePct: numberOrNull(row.lastRaidParsePct ?? row.last_raid_parse_pct ?? row.parse_percent ?? row.parsePct),
-    parseTrend: Array.isArray(row.parseTrend)
-      ? row.parseTrend.map((entry) => numberOrNull(entry?.value ?? entry?.pct ?? entry?.parse_pct ?? entry)).filter((entry) => entry !== null)
-      : Array.isArray(row.parse_trend)
-        ? row.parse_trend.map((entry) => numberOrNull(entry?.value ?? entry?.pct ?? entry?.parse_pct ?? entry)).filter((entry) => entry !== null)
-        : [],
-  }
+function normalizeBossRows(progress = {}) {
+  const incoming = Array.isArray(progress.bosses) ? progress.bosses : []
+  const byName = new Map(
+    incoming
+      .map((entry) => ({
+        name: entry?.name ?? entry?.encounter_name ?? null,
+        pulls: numberOrNull(entry?.pulls) ?? 0,
+        kills: numberOrNull(entry?.kills) ?? 0,
+        bestPercent: numberOrNull(entry?.bestPercent ?? entry?.best_percent) ?? 100,
+      }))
+      .filter((entry) => entry.name)
+      .map((entry) => [entry.name, entry]),
+  )
+
+  return MIDNIGHT_BOSS_ORDER.map((name) => byName.get(name) ?? {
+    name,
+    pulls: 0,
+    kills: 0,
+    bestPercent: 100,
+  })
 }
 
 function normalizeDashboard(payload, guild) {
   const parsed = payload && typeof payload === 'object' ? payload : {}
-  const roster = Array.isArray(parsed.roster) ? parsed.roster.map(normalizeRosterRow).filter(Boolean) : []
   const parseTrend = Array.isArray(parsed.charts?.parseTrend)
     ? parsed.charts.parseTrend.map((entry) => ({
       raidDate: entry?.raidDate ?? entry?.raid_night_date ?? null,
       avgParsePct: numberOrNull(entry?.avgParsePct ?? entry?.avg_parse_pct),
-    }))
+    })).filter((entry) => entry.raidDate)
     : []
+
   const ilvlTrend = Array.isArray(parsed.charts?.ilvlTrend)
     ? parsed.charts.ilvlTrend.map((entry) => ({
-      snapped_at: entry?.snapped_at ?? entry?.snappedAt ?? null,
-      avg_ilvl: numberOrNull(entry?.avg_ilvl ?? entry?.avgIlvl),
-      member_count: numberOrNull(entry?.member_count ?? entry?.memberCount) ?? 0,
-    }))
+      snappedAt: entry?.snapped_at ?? entry?.snappedAt ?? null,
+      avgIlvl: numberOrNull(entry?.avg_ilvl ?? entry?.avgIlvl),
+      memberCount: numberOrNull(entry?.member_count ?? entry?.memberCount) ?? 0,
+    })).filter((entry) => entry.snappedAt)
     : []
 
   return {
@@ -119,115 +209,256 @@ function normalizeDashboard(payload, guild) {
       ilvlTrend,
     },
     progress: {
-      zoneName: parsed.progress?.zoneName ?? parsed.progress?.zone_name ?? '',
+      zoneName: parsed.progress?.zoneName ?? parsed.progress?.zone_name ?? 'Heroic Midnight',
       progressedBossCount: numberOrNull(parsed.progress?.progressedBossCount ?? parsed.progress?.progressed_boss_count) ?? 0,
-      bossCount: numberOrNull(parsed.progress?.bossCount ?? parsed.progress?.boss_count) ?? 0,
+      bossCount: numberOrNull(parsed.progress?.bossCount ?? parsed.progress?.boss_count) ?? MIDNIGHT_BOSS_ORDER.length,
       deltaThisWeek: numberOrNull(parsed.progress?.deltaThisWeek ?? parsed.progress?.delta_this_week) ?? 0,
-      bosses: Array.isArray(parsed.progress?.bosses)
-        ? parsed.progress.bosses.map((entry) => ({
-          ...entry,
-          bestPercent: numberOrNull(entry?.bestPercent ?? entry?.best_percent),
-        }))
-        : [],
+      bosses: normalizeBossRows(parsed.progress),
     },
     leaderboard: Array.isArray(parsed.leaderboard)
-      ? parsed.leaderboard.map((entry) => ({
-        ...entry,
-        encounterName: entry?.encounterName ?? entry?.encounter_name ?? null,
+      ? parsed.leaderboard.map((entry, index) => ({
+        rank: index + 1,
+        name: entry?.name ?? 'Unknown',
+        role: normalizeRoleTone(entry?.role),
+        encounterName: entry?.encounterName ?? entry?.encounter_name ?? 'Unknown boss',
         parsePct: numberOrNull(entry?.parsePct ?? entry?.parse_pct),
         wclUrl: entry?.wclUrl ?? entry?.wcl_url ?? null,
       }))
       : [],
-    attendance: Array.isArray(parsed.attendance) ? parsed.attendance : [],
-    loot: Array.isArray(parsed.loot)
-      ? parsed.loot.map((entry) => ({
-        ...entry,
-        playerName: entry?.playerName ?? entry?.actor_name ?? null,
-        itemName: entry?.itemName ?? entry?.item_name ?? null,
-        sourceName: entry?.sourceName ?? entry?.encounter_name ?? null,
-        occurredAt: entry?.occurredAt ?? entry?.occurred_at ?? null,
-        isTier: entry?.isTier ?? entry?.is_tier ?? false,
+    attendance: Array.isArray(parsed.attendance)
+      ? parsed.attendance.map((entry) => ({
+        name: entry?.name ?? 'Unknown',
+        role: normalizeRoleTone(entry?.role),
+        nights: Array.isArray(entry?.nights) ? entry.nights.slice(-6) : [],
+        attendancePct: numberOrNull(entry?.attendancePct ?? entry?.attendance_pct) ?? 0,
       }))
       : [],
-    roster: roster.length ? roster : buildFallbackRoster(guild),
+    summary: parsed.summary ?? EMPTY_DASHBOARD.summary,
   }
 }
 
-function TrendSparkline({ values, color = 'var(--wax-strong)', label }) {
-  const safeValues = Array.isArray(values) ? values.map(numberOrNull).filter((value) => value !== null) : []
+function SketchLineChart({ values, color, label, filled = false }) {
+  const chartId = useId().replace(/:/g, '')
+  const points = Array.isArray(values) ? values.map(numberOrNull).filter((value) => value != null) : []
 
-  if (!safeValues.length) {
-    return <span className="guild-trend-empty">{label ?? 'No trend yet'}</span>
+  if (!points.length) {
+    return <div className="dashboard-chart__empty">No heroic history yet</div>
   }
 
-  const width = 120
-  const height = 34
-  const min = Math.min(...safeValues)
-  const max = Math.max(...safeValues)
+  const width = 420
+  const height = 140
+  const pad = 20
+  const min = Math.min(...points)
+  const max = Math.max(...points)
   const range = max - min || 1
-  const points = safeValues.map((value, index) => {
-    const x = safeValues.length === 1 ? width / 2 : (index / (safeValues.length - 1)) * width
-    const y = height - ((value - min) / range) * (height - 4) - 2
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
+  const xs = points.map((_, index) => (
+    points.length === 1
+      ? width / 2
+      : pad + (index * (width - pad * 2) / (points.length - 1))
+  ))
+  const ys = points.map((point) => pad + ((height - pad * 2) * (1 - ((point - min) / range))))
+  const path = xs.map((x, index) => `${index ? 'L' : 'M'}${x.toFixed(1)},${ys[index].toFixed(1)}`).join(' ')
+  const fillPath = `${path} L${xs.at(-1).toFixed(1)},${(height - pad).toFixed(1)} L${xs[0].toFixed(1)},${(height - pad).toFixed(1)} Z`
 
   return (
-    <svg className="guild-trend-sparkline" viewBox={`0 0 ${width} ${height}`} aria-label={label ?? 'Trend sparkline'} role="img">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg className="dashboard-chart" viewBox={`0 0 ${width} ${height}`} aria-label={label} role="img">
+      <defs>
+        <pattern id={`grid-${chartId}`} width="40" height="28" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 28" fill="none" stroke="var(--ink-faint)" strokeWidth="0.5" strokeDasharray="2 3" />
+        </pattern>
+      </defs>
+      <rect x={pad} y={pad} width={width - pad * 2} height={height - pad * 2} fill={`url(#grid-${chartId})`} />
+      <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="var(--ink)" strokeWidth="1.5" />
+      <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="var(--ink)" strokeWidth="1.5" />
+      {filled ? <path d={fillPath} fill={color} opacity="0.1" /> : null}
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {xs.map((x, index) => (
+        <circle
+          key={`${x}-${ys[index]}`}
+          cx={x}
+          cy={ys[index]}
+          r="2.5"
+          fill="var(--paper)"
+          stroke={color}
+          strokeWidth="1.5"
+        />
+      ))}
+      <text x={width - pad} y={pad - 4} textAnchor="end" className="dashboard-chart__label">{label}</text>
     </svg>
   )
 }
 
-function DashboardStat({ label, value, meta }) {
+function HeroChartCard({ title, meta, values, label, color }) {
   return (
-    <article className="guild-stat-card">
-      <span className="guild-stat-card__label">{label}</span>
-      <strong className="guild-stat-card__value">{value}</strong>
-      {meta && <span className="guild-stat-card__meta">{meta}</span>}
-    </article>
-  )
-}
-
-function SectionHeader({ kicker, title, subtitle, action }) {
-  return (
-    <div className="guild-section__header">
-      <div>
-        {kicker && <p className="guild-section__kicker">{kicker}</p>}
-        <h3 className="guild-section__title">{title}</h3>
-        {subtitle && <p className="guild-section__subtitle">{subtitle}</p>}
+    <section className="dashboard-card">
+      <div className="dashboard-card__header">
+        <h3 className="dashboard-card__title">{title}</h3>
+        <span className="dashboard-card__meta">{meta}</span>
       </div>
-      {action}
-    </div>
+      <SketchLineChart values={values} color={color} label={label} filled />
+    </section>
   )
 }
 
-function TrendPanel({ title, subtitle, points, valueKey, labelKey, accent }) {
-  const normalized = Array.isArray(points) ? points : []
-  const values = normalized.map((point) => numberOrNull(point?.[valueKey])).filter((value) => value !== null)
-
+function ProgressRail({ progress }) {
   return (
-    <article className="guild-panel guild-panel--trend">
-      <SectionHeader kicker="Raid history" title={title} subtitle={subtitle} />
-      <div className="guild-trend-panel">
-        <TrendSparkline values={values} color={accent} label={title} />
-        <div className="guild-trend-panel__axis">
-          {normalized.length > 0 ? normalized.slice(-4).map((point) => (
-            <span key={`${point?.[labelKey] ?? 'point'}-${point?.[valueKey] ?? ''}`}>
-              {labelKey === 'snapped_at' ? formatRaidDate(point?.[labelKey]) : String(point?.[labelKey] ?? '—')}
-            </span>
-          )) : <span>No history yet</span>}
+    <section className="dashboard-card dashboard-card--progress">
+      <div className="dashboard-card__header">
+        <h3 className="dashboard-card__title">Heroic Midnight · boss-by-boss</h3>
+        <span className="dashboard-card__meta">
+          {progress.progressedBossCount} / {progress.bossCount} · +{progress.deltaThisWeek} kills this week
+        </span>
+      </div>
+      <div className="dashboard-progress-list">
+        {progress.bosses.map((boss) => (
+          <div key={boss.name} className="dashboard-progress-row">
+            <div className="dashboard-progress-row__name">{boss.name}</div>
+            <div className="dashboard-bar-track">
+              <div
+                className={`dashboard-bar-fill ${getBossTone(boss)}`}
+                style={{ width: `${getBossFill(boss)}%` }}
+              />
+            </div>
+            <div className="dashboard-progress-row__pulls">{boss.pulls} pulls</div>
+            <div className={`dashboard-progress-row__result ${getBossTone(boss)}`}>
+              {boss.kills > 0 ? `${boss.kills} kill${boss.kills > 1 ? 's' : ''}` : `best ${formatPercent(boss.bestPercent)}%`}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function LeaderboardCard({ entries }) {
+  return (
+    <section className="dashboard-card">
+      <div className="dashboard-card__header">
+        <div>
+          <h3 className="dashboard-card__title">Log leaderboard</h3>
+          <p className="dashboard-card__subtitle">best parse per member · last heroic raid</p>
+        </div>
+        <span className="dashboard-card__meta">last raid</span>
+      </div>
+      <div className="dashboard-log-list">
+        {entries.length ? entries.slice(0, 8).map((entry) => {
+          const content = (
+            <div className="dashboard-log-row">
+              <div className="dashboard-log-row__rank">{String(entry.rank).padStart(2, '0')}</div>
+              <div className="dashboard-log-row__name">{entry.name}</div>
+              <span className={`sk-pill ${entry.role}`}>{entry.role}</span>
+              <div className="dashboard-log-row__boss">{entry.encounterName}</div>
+              <div className="dashboard-log-row__score" style={{ color: parseColor(entry.parsePct) }}>
+                {formatPercent(entry.parsePct)}
+              </div>
+            </div>
+          )
+
+          return entry.wclUrl ? (
+            <a
+              key={`${entry.name}-${entry.encounterName}`}
+              href={entry.wclUrl}
+              className="dashboard-log-link"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {content}
+            </a>
+          ) : (
+            <div key={`${entry.name}-${entry.encounterName}`} className="dashboard-log-link">
+              {content}
+            </div>
+          )
+        }) : <div className="dashboard-card__empty">No heroic leaderboard entries yet.</div>}
+      </div>
+    </section>
+  )
+}
+
+function AttendanceCard({ entries }) {
+  return (
+    <section className="dashboard-card">
+      <div className="dashboard-card__header">
+        <div>
+          <h3 className="dashboard-card__title">Attendance · last 6 nights</h3>
+          <p className="dashboard-card__subtitle">filled = attended · hollow = missed</p>
         </div>
       </div>
-    </article>
+      <div className="dashboard-attendance-list">
+        {entries.length ? entries.slice(0, 8).map((entry) => (
+          <div key={entry.name} className="dashboard-attendance-row">
+            <div className="dashboard-attendance-row__name">{entry.name}</div>
+            <div className="dashboard-attendance-row__dots" aria-label={`${entry.name} attendance`}>
+              {entry.nights.map((night, index) => (
+                <span
+                  key={`${entry.name}-${index}`}
+                  className={`dashboard-attendance-dot ${entry.role}${night ? ' is-present' : ''}`}
+                />
+              ))}
+            </div>
+          </div>
+        )) : <div className="dashboard-card__empty">No heroic attendance data yet.</div>}
+      </div>
+    </section>
   )
 }
 
-export default function GuildOverview({ guild }) {
+function TweaksRail({ tweaks, onToggleRoleColors, onDensityChange, onIntensityChange }) {
+  return (
+    <aside className="tweaks-panel on">
+      <h3>Tweaks</h3>
+      <label htmlFor="dashboard-rolecolors">
+        <span>Role colors</span>
+        <button
+          id="dashboard-rolecolors"
+          type="button"
+          className={`tog${tweaks.rolecolors === 'on' ? ' on' : ''}`}
+          data-tog="rolecolors"
+          onClick={onToggleRoleColors}
+          aria-pressed={tweaks.rolecolors === 'on'}
+        />
+      </label>
+      <label htmlFor="dashboard-density">
+        <span>Density</span>
+        <select
+          id="dashboard-density"
+          data-set="density"
+          value={tweaks.density}
+          onChange={(event) => onDensityChange(event.target.value)}
+        >
+          <option value="compact">compact</option>
+          <option value="balanced">balanced</option>
+          <option value="spacious">spacious</option>
+        </select>
+      </label>
+      <label htmlFor="dashboard-intensity">
+        <span>Aesthetic</span>
+        <select
+          id="dashboard-intensity"
+          data-set="intensity"
+          value={tweaks.intensity}
+          onChange={(event) => onIntensityChange(event.target.value)}
+        >
+          <option value="inked">inked</option>
+          <option value="plain">plain</option>
+        </select>
+      </label>
+    </aside>
+  )
+}
+
+export default function GuildOverview({ guild, onSettingsClick }) {
   const [dashboard, setDashboard] = useState(() => buildFallbackDashboard(guild))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [rosterOpen, setRosterOpen] = useState(true)
-  const [refreshTick, setRefreshTick] = useState(0)
+  const [tweaks, setTweaks] = useState(loadTweaks)
+
+  useEffect(() => {
+    applyBodyTweaks(tweaks)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(DASHBOARD_TWEAKS_KEY, JSON.stringify(tweaks))
+    }
+  }, [tweaks])
 
   useEffect(() => {
     let active = true
@@ -261,254 +492,74 @@ export default function GuildOverview({ guild }) {
       active = false
       controller.abort()
     }
-  }, [guild?.name, guild?.realm, guild?.region, refreshTick])
+  }, [guild?.name, guild?.realm, guild?.region])
 
   const normalized = useMemo(() => normalizeDashboard(dashboard, guild), [dashboard, guild])
-  const parseTrend = normalized.charts.parseTrend
-  const ilvlTrend = normalized.charts.ilvlTrend
-  const progressBosses = normalized.progress.bosses
-  const roster = normalized.roster
-  const mains = roster.filter((member) => member.isMain !== false).length
-  const alts = roster.length - mains
-  const openLabel = rosterOpen ? 'Collapse roster' : 'Expand roster'
-
-  if (!roster.length && loading) {
-    return (
-      <section className="guild-dashboard">
-        <div className="guild-panel guild-panel--empty">Loading guild dashboard...</div>
-      </section>
-    )
-  }
+  const parseTrend = normalized.charts.parseTrend.slice(-12)
+  const ilvlTrend = normalized.charts.ilvlTrend.slice(-12)
+  const guildLabel = [
+    normalized.guild.name || guild?.name || 'Guild Dashboard',
+    formatRealmLabel(normalized.guild.realm || guild?.realm),
+    (normalized.guild.region || guild?.region || '').toUpperCase(),
+  ].filter(Boolean).join(' · ')
+  const latestRaidLabel = normalized.summary?.latest_raid_night_date
+    ? `latest heroic night · ${formatRaidDate(normalized.summary.latest_raid_night_date)}`
+    : 'waiting on heroic report history'
+  const statusLabel = loading ? 'syncing dashboard data' : error || latestRaidLabel
 
   return (
-    <section className="guild-dashboard">
-      <section className="guild-hero-card">
-        <div className="guild-hero-card__copy">
-          <p className="guild-hero-card__kicker">Parchment briefing</p>
-          <h2 className="guild-hero-card__title">
-            {normalized.guild.name || guild?.name || 'Guild Dashboard'}
-          </h2>
-          <p className="guild-hero-card__subtitle">
-            {[
-              formatRealmLabel(normalized.guild.realm || guild?.realm),
-              (normalized.guild.region || guild?.region)?.toUpperCase(),
-            ].filter(Boolean).join(' · ') || 'Waiting for guild metadata'}
-          </p>
-          <p className="guild-hero-card__body">
-            Live summary panel for raid parses, progression, attendance, loot, and roster trends.
-          </p>
+    <section className="dashboard-shell">
+      <div className="variant dashboard-variant">
+        <div className="variant-head">
+          <span className="variant-label">LOCKED · A</span>
+          <span className="variant-title">Hero charts, progress rail, log leaderboard</span>
+          <div className="dashboard-variant__meta">
+            <span className="variant-note">weekly glance · raid-lead friendly</span>
+            <button type="button" className="dashboard-settings-button" onClick={onSettingsClick}>
+              Settings
+            </button>
+          </div>
         </div>
 
-        <div className="guild-hero-card__actions">
-          <button type="button" className="guild-button guild-button--primary" onClick={() => setRefreshTick((value) => value + 1)}>
-            Refresh dashboard
-          </button>
-          <p className="guild-hero-card__status">
-            {loading ? 'Syncing dashboard data...' : error ? error : 'Dashboard ready'}
-          </p>
+        <div className="dashboard-board__intro">
+          <div className="dashboard-board__guild">{guildLabel}</div>
+          <div className="dashboard-board__status">{statusLabel}</div>
         </div>
-      </section>
 
-      <section className="guild-stat-grid">
-        <DashboardStat
-          label="Raid nights"
-          value={formatNumber(parseTrend.length, 0)}
-          meta={parseTrend.length ? `Latest ${formatRaidDate(parseTrend.at(-1)?.raidDate)}` : 'No imported raids yet'}
-        />
-        <DashboardStat
-          label="Progress"
-          value={`${normalized.progress.progressedBossCount}/${normalized.progress.bossCount || 0}`}
-          meta={normalized.progress.zoneName || 'Progress rail pending'}
-        />
-        <DashboardStat
-          label="Roster"
-          value={`${mains} mains`}
-          meta={`${alts} alts in the collapse panel`}
-        />
-        <DashboardStat
-          label="Attendance"
-          value={formatNumber(normalized.attendance.length, 0)}
-          meta="Last six raid nights"
-        />
-      </section>
+        <div className="grid-2 dashboard-grid-2">
+          <HeroChartCard
+            title="Avg guild parse · per raid night"
+            meta={formatParseMeta(parseTrend)}
+            values={parseTrend.map((entry) => entry.avgParsePct)}
+            label="parse %"
+            color="var(--role-dps)"
+          />
+          <HeroChartCard
+            title="Avg guild ilvl · per raid night"
+            meta={formatIlvlMeta(ilvlTrend)}
+            values={ilvlTrend.map((entry) => entry.avgIlvl)}
+            label="ilvl"
+            color="var(--ink)"
+          />
+        </div>
 
-      <div className="guild-dashboard__trends">
-        <TrendPanel
-          title="Parse trend"
-          subtitle="Average kill parses by raid night"
-          points={parseTrend}
-          valueKey="avgParsePct"
-          labelKey="raidDate"
-          accent="var(--wax-strong)"
-        />
-        <TrendPanel
-          title="iLvl trend"
-          subtitle="Average guild item level over time"
-          points={ilvlTrend}
-          valueKey="avg_ilvl"
-          labelKey="snapped_at"
-          accent="var(--amber)"
-        />
+        <ProgressRail progress={normalized.progress} />
+
+        <div className="grid-2 dashboard-grid-2 dashboard-grid-2--lower">
+          <LeaderboardCard entries={normalized.leaderboard} />
+          <AttendanceCard entries={normalized.attendance} />
+        </div>
       </div>
 
-      <div className="guild-dashboard__grid">
-        <article className="guild-panel">
-          <SectionHeader
-            kicker="Progress rail"
-            title="Raid progression"
-            subtitle="Pulls, kills, and best wipe percentage from imported reports."
-          />
-          {progressBosses.length > 0 ? (
-            <div className="guild-progress-list">
-              {progressBosses.map((boss) => {
-                const pulls = numberOrNull(boss.pulls) ?? 0
-                const kills = numberOrNull(boss.kills) ?? 0
-                const bestPercent = numberOrNull(boss.bestPercent)
-                const fill = pulls > 0 ? Math.min(100, (kills / pulls) * 100) : 0
-
-                return (
-                  <div key={boss.name} className="guild-progress-row">
-                    <div className="guild-progress-row__title">
-                      <strong>{boss.name}</strong>
-                      <span>{kills}/{pulls} kills</span>
-                    </div>
-                    <div className="guild-progress-row__bar">
-                      <span className="guild-progress-row__fill" style={{ width: `${fill}%` }} />
-                    </div>
-                    <div className="guild-progress-row__meta">
-                      <span>{formatPercent(bestPercent)} best wipe</span>
-                      <span>{boss.encounterName ?? boss.note ?? ''}</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="guild-panel__empty">No progression data has been imported yet.</p>
-          )}
-        </article>
-
-        <article className="guild-panel">
-          <SectionHeader
-            kicker="Most recent raid"
-            title="Leaderboard"
-            subtitle="Best kill parse per member from the latest imported night."
-          />
-          {normalized.leaderboard.length > 0 ? (
-            <div className="guild-leaderboard">
-              {normalized.leaderboard.map((entry) => (
-                <a
-                  key={`${entry.name}-${entry.encounterName ?? ''}`}
-                  href={entry.wclUrl || undefined}
-                  target={entry.wclUrl ? '_blank' : undefined}
-                  rel={entry.wclUrl ? 'noreferrer' : undefined}
-                  className="guild-leaderboard__row"
-                >
-                  <div>
-                    <strong>{entry.name}</strong>
-                    <span>{entry.role || 'dps'} · {entry.encounterName || 'Unknown encounter'}</span>
-                  </div>
-                  <span className="guild-leaderboard__score">{formatPercent(entry.parsePct)}</span>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <p className="guild-panel__empty">No leaderboard entries yet.</p>
-          )}
-        </article>
-
-        <article className="guild-panel">
-          <SectionHeader
-            kicker="Attendance"
-            title="Last six raid nights"
-            subtitle="Mains only attendance snapshot."
-          />
-          {normalized.attendance.length > 0 ? (
-            <div className="guild-attendance-list">
-              {normalized.attendance.map((entry) => (
-                <div key={entry.name} className="guild-attendance-row">
-                  <div>
-                    <strong>{entry.name}</strong>
-                    <span>{entry.role || 'role unknown'}</span>
-                  </div>
-                  <div className="guild-attendance-row__nights">
-                    {(entry.nights ?? []).map((night, index) => (
-                      <span key={`${entry.name}-${index}`} className={`guild-night-pill${night ? ' is-present' : ''}`} title={night ? 'Present' : 'Absent'} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="guild-panel__empty">No attendance data yet.</p>
-          )}
-        </article>
-
-        <article className="guild-panel">
-          <SectionHeader
-            kicker="Recent loot"
-            title="Loot tracker"
-            subtitle="Last 14 days of imported loot, if available."
-          />
-          {normalized.loot.length > 0 ? (
-            <div className="guild-loot-list">
-              {normalized.loot.map((entry) => (
-                <div key={`${entry.playerName}-${entry.itemName}-${entry.occurredAt}`} className="guild-loot-row">
-                  <div>
-                    <strong>{entry.itemName}</strong>
-                    <span>{entry.playerName} · {entry.sourceName || 'Unknown source'}</span>
-                  </div>
-                  <div className="guild-loot-row__meta">
-                    <span>{formatRaidDate(entry.occurredAt)}</span>
-                    {entry.isTier && <span className="guild-loot-row__tag">Tier</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="guild-panel__empty">No loot events imported yet.</p>
-          )}
-        </article>
-      </div>
-
-      <article className="guild-panel guild-panel--roster">
-        <div className="guild-section__header">
-          <div>
-            <p className="guild-section__kicker">Roster</p>
-            <h3 className="guild-section__title">Collapsible roster</h3>
-            <p className="guild-section__subtitle">Dense rows with current iLvl and parse-trend sparklines.</p>
-          </div>
-          <button type="button" className="guild-button" aria-expanded={rosterOpen} onClick={() => setRosterOpen((value) => !value)}>
-            {openLabel}
-          </button>
-        </div>
-
-        {rosterOpen ? (
-          <div className="guild-roster-list">
-            {roster.map((member) => (
-              <div key={member.name} className="guild-roster-row">
-                <div className="guild-roster-row__identity">
-                  <strong>{member.name}</strong>
-                  <span>{[member.className, member.specName].filter(Boolean).join(' ') || 'Unspecified'} · {member.role || 'dps'}</span>
-                </div>
-                <div className="guild-roster-row__stats">
-                  <div>
-                    <span className="guild-roster-row__label">iLvl</span>
-                    <strong>{member.avgIlvl !== null ? formatNumber(member.avgIlvl, 1) : '—'}</strong>
-                  </div>
-                  <div>
-                    <span className="guild-roster-row__label">Last parse</span>
-                    <strong>{member.lastRaidParsePct !== null ? formatPercent(member.lastRaidParsePct) : '—'}</strong>
-                  </div>
-                  <TrendSparkline values={member.parseTrend} color="var(--wax-strong)" label={`${member.name} parse trend`} />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="guild-panel__empty">Roster collapsed.</p>
-        )}
-      </article>
+      <TweaksRail
+        tweaks={tweaks}
+        onToggleRoleColors={() => setTweaks((current) => ({
+          ...current,
+          rolecolors: current.rolecolors === 'on' ? 'off' : 'on',
+        }))}
+        onDensityChange={(density) => setTweaks((current) => ({ ...current, density }))}
+        onIntensityChange={(intensity) => setTweaks((current) => ({ ...current, intensity }))}
+      />
     </section>
   )
 }

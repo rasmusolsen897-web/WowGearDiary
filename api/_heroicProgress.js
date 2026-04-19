@@ -1,25 +1,35 @@
 export const MIDNIGHT_TIER_ZONE_ID = 48
-export const MIDNIGHT_TIER_ZONE_NAME = 'VS / DR / MQD (Beta)'
+export const MIDNIGHT_TIER_ZONE_NAME = 'Heroic Midnight'
+
+export const MIDNIGHT_HEROIC_BOSS_ORDER = [
+  'Imperator Averzian',
+  "Belo'ren, Child of Al'ar",
+  'Fallen-King Salhadaar',
+  'Crown of the Cosmos',
+  'Vorasius',
+  'Vaelgor & Ezzorak',
+  'Midnight Falls',
+  'Chimaerus the Undreamt God',
+]
 
 export const MIDNIGHT_RAIDS = [
   {
     name: 'The Voidspire',
     bosses: [
       'Imperator Averzian',
-      'Vorasius',
       'Fallen-King Salhadaar',
-      'Vaelgor & Ezzorak',
-      'Lightblinded Vanguard',
       'Crown of the Cosmos',
+      'Vorasius',
+      'Vaelgor & Ezzorak',
     ],
   },
   {
     name: 'The Dreamrift',
-    bosses: ['Chimaerus the Undreamt God'],
+    bosses: ['Midnight Falls', 'Chimaerus the Undreamt God'],
   },
   {
     name: "March on Quel'Danas",
-    bosses: ["Belo'ren, Child of Al'ar", 'Midnight Falls'],
+    bosses: ["Belo'ren, Child of Al'ar"],
   },
 ]
 

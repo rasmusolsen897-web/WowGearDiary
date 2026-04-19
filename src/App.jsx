@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import data from './data.json'
-import GuildHeader from './components/GuildHeader.jsx'
 import GuildOverview from './components/GuildOverview.jsx'
 import Settings from './components/Settings.jsx'
 import { normalizeIdentityName } from './utils/characterIdentity.js'
@@ -205,9 +204,8 @@ export default function App() {
 
   return (
     <>
-      <GuildHeader guild={guild} onSettingsClick={() => setSettingsOpen(true)} />
       <main className="app-shell">
-        <GuildOverview guild={guild} />
+        <GuildOverview guild={guild} onSettingsClick={() => setSettingsOpen(true)} />
       </main>
       <Settings {...settingsProps} />
     </>

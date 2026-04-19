@@ -1,21 +1,34 @@
 import { fetchWCLGraphQL } from './_wcl.js'
+import { MIDNIGHT_HEROIC_BOSS_ORDER, MIDNIGHT_TIER_ZONE_NAME } from './_heroicProgress.js'
+import { buildIdentitySlug, normalizeIdentityName } from '../src/utils/characterIdentity.js'
 
 const DEFAULT_TIME_ZONE = 'Europe/Copenhagen'
+const HEROIC_DIFFICULTY = 5
+const REGION_ALIASES = new Map([
+  ['eu', 'eu'],
+  ['europe', 'eu'],
+  ['us', 'us'],
+  ['na', 'us'],
+  ['northamerica', 'us'],
+  ['north-america', 'us'],
+  ['americas', 'us'],
+  ['kr', 'kr'],
+  ['korea', 'kr'],
+  ['tw', 'tw'],
+  ['taiwan', 'tw'],
+])
 
 function normalizeText(value) {
   return String(value ?? '').normalize('NFC').trim()
 }
 
 function normalizeSlugPart(value) {
-  return normalizeText(value)
-    .toLowerCase()
-    .replace(/['"]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  return buildIdentitySlug(normalizeText(value)) || ''
 }
 
 function normalizeRegion(region) {
-  return normalizeSlugPart(region) || null
+  const normalized = normalizeIdentityName(region).replace(/\s+/g, '').replace(/['"]/g, '')
+  return REGION_ALIASES.get(normalized) ?? (normalizeSlugPart(region) || null)
 }
 
 function toIso(value) {
@@ -94,7 +107,39 @@ function makePlayerLookup(actors = []) {
   return lookup
 }
 
-function normalizeRankingRows(rawRows = [], fight = {}, report = {}) {
+function toRoleKey(role) {
+  const value = normalizeIdentityName(role)
+  if (!value) return null
+  if (value.startsWith('tank')) return 'tank'
+  if (value.startsWith('heal')) return 'healer'
+  if (value.startsWith('dps')) return 'dps'
+  return value
+}
+
+function getServerName(server) {
+  if (typeof server === 'string') return server
+  return server?.name ?? server?.slug ?? null
+}
+
+function getServerRegion(server = {}, report = {}) {
+  return server?.region?.code
+    ?? server?.region?.name
+    ?? server?.region?.slug
+    ?? report?.guild?.server?.region?.code
+    ?? report?.guild?.server?.region?.name
+    ?? report?.guild?.server?.region?.slug
+    ?? report?.region?.code
+    ?? report?.region?.name
+    ?? report?.region?.slug
+    ?? null
+}
+
+function toNumeric(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function flattenRankingEntries(rawRows = []) {
   const rows = Array.isArray(rawRows)
     ? rawRows
     : Array.isArray(rawRows?.rankings)
@@ -103,30 +148,62 @@ function normalizeRankingRows(rawRows = [], fight = {}, report = {}) {
         ? rawRows.data
         : []
 
-  return rows
+  return rows.flatMap((row) => {
+    if (row?.roles && typeof row.roles === 'object') {
+      return Object.entries(row.roles).flatMap(([roleKey, bucket]) => {
+        const characters = Array.isArray(bucket?.characters)
+          ? bucket.characters
+          : Array.isArray(bucket?.data)
+            ? bucket.data
+            : []
+
+        return characters.map((character) => ({
+          ...character,
+          __role: toRoleKey(roleKey),
+          __bracketData: character?.bracketData ?? bucket?.bracketData ?? row?.bracketData ?? null,
+        }))
+      })
+    }
+
+    return [row]
+  })
+}
+
+function normalizeRankingRows(rawRows = [], fight = {}, report = {}) {
+  return flattenRankingEntries(rawRows)
     .map((row) => {
-      const actor = row?.actor ?? row?.player ?? row?.character ?? row?.source ?? {}
+      const actor = row?.actor ?? row?.player ?? row?.character ?? row?.source ?? row ?? {}
       const name = normalizeText(actor?.name ?? row?.name)
       if (!name) return null
 
-      const realm = normalizeText(actor?.server ?? actor?.realm ?? row?.realm ?? report?.guild?.server ?? report?.guild?.realm)
-      const region = normalizeText(actor?.region ?? row?.region ?? report?.region?.code ?? report?.region?.name)
+      const realm = normalizeText(
+        actor?.realm
+        ?? getServerName(actor?.server)
+        ?? row?.realm
+        ?? getServerName(row?.server)
+        ?? report?.guild?.server?.name
+        ?? report?.guild?.realm,
+      )
+      const region = normalizeText(
+        actor?.region
+        ?? row?.region
+        ?? getServerRegion(actor?.server, report)
+        ?? getServerRegion(row?.server, report)
+        ?? report?.region?.code
+        ?? report?.region?.name,
+      )
       return {
         actor_id: actor?.id ?? row?.actorId ?? row?.actorID ?? null,
         actor_key: normalizeWclActorKey({ name, realm, region }),
         actor_name: name,
         actor_realm: compact(normalizeWclRealmSlug(realm)),
         actor_region: compact(normalizeRegion(region)),
-        class_name: compact(normalizeText(actor?.class ?? row?.class ?? row?.specClass)),
-        spec_name: compact(normalizeText(actor?.spec ?? actor?.subType ?? row?.spec ?? row?.subType)),
-        role: compact(normalizeText(actor?.role ?? row?.role)),
-        parse_percent: Number.isFinite(Number(row?.rankPercent ?? row?.parsePercent ?? row?.percent ?? row?.rank_percent))
-          ? Number(row.rankPercent ?? row.parsePercent ?? row.percent ?? row.rank_percent)
-          : null,
-        dps: Number.isFinite(Number(row?.dps ?? row?.dpsAmount ?? row?.value)) ? Number(row.dps ?? row.dpsAmount ?? row.value) : null,
-        item_level: Number.isFinite(Number(row?.itemLevel ?? row?.item_level ?? row?.ilvl))
-          ? Number(row.itemLevel ?? row.item_level ?? row.ilvl)
-          : null,
+        class_name: compact(normalizeText(actor?.class ?? actor?.className ?? row?.class ?? row?.className ?? row?.specClass)),
+        spec_name: compact(normalizeText(actor?.spec ?? actor?.specName ?? actor?.subType ?? row?.spec ?? row?.specName ?? row?.subType)),
+        role: compact(toRoleKey(actor?.role ?? row?.role ?? row?.__role)),
+        parse_percent: toNumeric(row?.rankPercent ?? row?.parsePercent ?? row?.percent ?? row?.rank_percent),
+        dps: toNumeric(row?.dps ?? row?.dpsAmount ?? row?.amount ?? row?.value),
+        item_level: toNumeric(row?.itemLevel ?? row?.item_level ?? row?.ilvl ?? row?.__bracketData ?? row?.bracketData),
         fight_id: fight?.id ?? null,
       }
     })
@@ -334,6 +411,67 @@ function buildProgressRows(reportCode, fights = []) {
     if (right.kills !== left.kills) return right.kills - left.kills
     if (right.pulls !== left.pulls) return right.pulls - left.pulls
     return left.encounter_name.localeCompare(right.encounter_name)
+  })
+}
+
+const MIDNIGHT_HEROIC_BOSS_INDEX = new Map(
+  MIDNIGHT_HEROIC_BOSS_ORDER.map((name, index) => [normalizeIdentityName(name), { index, name }]),
+)
+
+function isHeroicFight(fight = {}) {
+  return Number(fight?.difficulty) === HEROIC_DIFFICULTY
+}
+
+function getMidnightHeroicBossName(encounterName) {
+  const match = MIDNIGHT_HEROIC_BOSS_INDEX.get(normalizeIdentityName(encounterName))
+  return match?.name ?? null
+}
+
+function buildHeroicProgressRows(fights = [], latestRaidDate = null) {
+  const rowsByName = new Map(
+    MIDNIGHT_HEROIC_BOSS_ORDER.map((name) => [name, {
+      encounter_name: name,
+      pulls: 0,
+      kills: 0,
+      best_percent: 100,
+      latest_kill_date: null,
+    }]),
+  )
+
+  for (const fight of fights) {
+    if (!isHeroicFight(fight)) continue
+    if (Number(fight?.encounter_id) === 0) continue
+
+    const bossName = getMidnightHeroicBossName(fight?.encounter_name)
+    if (!bossName) continue
+
+    const row = rowsByName.get(bossName)
+    row.pulls += 1
+
+    if (fight.kill) {
+      row.kills += 1
+      row.best_percent = 100
+      if (fight.raid_night_date && (!row.latest_kill_date || fight.raid_night_date > row.latest_kill_date)) {
+        row.latest_kill_date = fight.raid_night_date
+      }
+      continue
+    }
+
+    const bossPercent = toNumeric(fight.boss_percentage ?? fight.fight_percentage)
+    if (bossPercent != null) {
+      row.best_percent = Math.min(row.best_percent, bossPercent)
+    }
+  }
+
+  return MIDNIGHT_HEROIC_BOSS_ORDER.map((name) => {
+    const row = rowsByName.get(name)
+    return {
+      encounter_name: name,
+      pulls: row.pulls,
+      kills: row.kills,
+      best_percent: row.pulls > 0 ? row.best_percent : 100,
+      killed_this_week: Boolean(latestRaidDate && row.latest_kill_date === latestRaidDate),
+    }
   })
 }
 
@@ -581,6 +719,12 @@ export function buildGuildDashboardPayload({
   const reportByCode = new Map(readyReports.map((report) => [report.report_code, report]))
   const fightRows = normalizeFightRows(fights).filter((fight) => reportByCode.has(fight.report_code))
   const fightByKey = new Map(fightRows.map((fight) => [`${fight.report_code}:${fight.fight_id}`, fight]))
+  const heroicFightKeys = new Set(
+    fightRows
+      .filter((fight) => isHeroicFight(fight))
+      .map((fight) => `${fight.report_code}:${fight.fight_id}`),
+  )
+  const heroicFightRows = fightRows.filter((fight) => heroicFightKeys.has(`${fight.report_code}:${fight.fight_id}`))
   const fightPlayerRows = normalizeFightPlayerRows(fightPlayers)
     .filter((row) => reportByCode.has(row.report_code))
     .map((row) => {
@@ -591,6 +735,7 @@ export function buildGuildDashboardPayload({
         raid_night_date: row.raid_night_date ?? fight?.raid_night_date ?? reportByCode.get(row.report_code)?.raid_night_date ?? null,
       }
     })
+    .filter((row) => heroicFightKeys.has(`${row.report_code}:${row.fight_id}`))
   const lootRows = normalizeLootRows(lootEvents).filter((row) => reportByCode.has(row.report_code))
   const rosterRows = (Array.isArray(roster) ? roster : []).map((row) => ({
     name: normalizeText(row.name) || null,
@@ -608,14 +753,24 @@ export function buildGuildDashboardPayload({
     region: row.region ?? guild?.region ?? null,
   }))
 
-  const raidNightDates = [...new Set(readyReports.map((report) => report.raid_night_date).filter(Boolean))].sort()
+  const heroicRaidNightDates = [...new Set(heroicFightRows.map((fight) => fight.raid_night_date).filter(Boolean))].sort()
+  const heroicReportCodesByDate = new Map(
+    heroicRaidNightDates.map((raidNightDate) => [
+      raidNightDate,
+      readyReports
+        .filter((report) => report.raid_night_date === raidNightDate)
+        .map((report) => report.report_code),
+    ]),
+  )
+
+  const raidNightDates = heroicRaidNightDates
   const parseTrendDates = raidNightDates.slice(-12)
   const attendanceDates = raidNightDates.slice(-6)
   const paddedAttendanceDates = [...attendanceDates]
   while (paddedAttendanceDates.length < 6) paddedAttendanceDates.unshift(null)
 
   const parseTrend = parseTrendDates.map((raidNightDate) => {
-    const reportCodes = readyReports.filter((report) => report.raid_night_date === raidNightDate).map((report) => report.report_code)
+    const reportCodes = heroicReportCodesByDate.get(raidNightDate) ?? []
     const parses = fightPlayerRows
       .filter((row) => row.raid_night_date === raidNightDate && row.kill && row.parse_percent != null && reportCodes.includes(row.report_code))
       .map((row) => row.parse_percent)
@@ -640,7 +795,7 @@ export function buildGuildDashboardPayload({
   }))
 
   const latestRaidDate = raidNightDates.at(-1) ?? null
-  const bossRows = buildProgressRows('aggregate', fightRows)
+  const bossRows = buildHeroicProgressRows(heroicFightRows, latestRaidDate)
   const leaderboard = latestRaidDate
     ? Object.values(
       fightPlayerRows
@@ -671,7 +826,7 @@ export function buildGuildDashboardPayload({
     .map((member) => {
       const nights = paddedAttendanceDates.map((raidNightDate) => {
         if (!raidNightDate) return false
-        const reportCodes = readyReports.filter((report) => report.raid_night_date === raidNightDate).map((report) => report.report_code)
+        const reportCodes = heroicReportCodesByDate.get(raidNightDate) ?? []
         return fightPlayerRows.some((row) => row.actor_key === member.actor_key && row.raid_night_date === raidNightDate && reportCodes.includes(row.report_code))
       })
       return {
@@ -687,7 +842,7 @@ export function buildGuildDashboardPayload({
   const rosterWithHistory = rosterRows
     .map((member) => {
       const parseTrendForMember = attendanceDates.map((raidNightDate) => {
-        const reportCodes = readyReports.filter((report) => report.raid_night_date === raidNightDate).map((report) => report.report_code)
+        const reportCodes = heroicReportCodesByDate.get(raidNightDate) ?? []
         const rows = fightPlayerRows.filter((row) => row.actor_key === member.actor_key && row.raid_night_date === raidNightDate && row.kill && row.parse_percent != null && reportCodes.includes(row.report_code))
         const values = rows.map((row) => row.parse_percent)
         return {
@@ -727,15 +882,15 @@ export function buildGuildDashboardPayload({
       ilvlTrend,
     },
     progress: {
-      zone_name: readyReports.find((report) => report.raid_night_date === latestRaidDate)?.zone_name ?? guild?.zone ?? null,
+      zone_name: readyReports.find((report) => report.raid_night_date === latestRaidDate)?.zone_name ?? guild?.zone ?? MIDNIGHT_TIER_ZONE_NAME,
       progressed_boss_count: bossRows.filter((row) => row.kills > 0).length,
       boss_count: bossRows.length,
-      delta_this_week: bossRows.filter((row) => row.kills > 0).length,
+      delta_this_week: bossRows.filter((row) => row.killed_this_week).length,
       bosses: bossRows.map((row) => ({
         name: row.encounter_name,
         pulls: row.pulls,
         kills: row.kills,
-        best_percent: row.best_wipe_percent ?? row.best_percent ?? null,
+        best_percent: row.best_percent ?? null,
       })),
     },
     leaderboard,
@@ -888,17 +1043,10 @@ export async function fetchWclWarehouseImport(reportInput) {
   const report = await fetchReportCore(reportCode)
   const fights = Array.isArray(report.fights) ? report.fights : []
   const fightRankingsByFightId = {}
-  const lootEvents = []
 
   for (const fight of fights) {
     if (fight?.id == null) continue
     fightRankingsByFightId[fight.id] = await fetchFightRankings(reportCode, fight)
-    lootEvents.push(...flattenLootLikeEvents(await fetchFightEvents(reportCode, fight), {
-      reportCode,
-      report,
-      fight,
-      occurredAt: fight.endTime ?? report.endTime ?? null,
-    }))
   }
 
   return {
@@ -907,7 +1055,7 @@ export async function fetchWclWarehouseImport(reportInput) {
     document: buildWclWarehouseDocument(reportCode, report, {
       sourceUrl: typeof reportInput === 'string' ? reportInput : null,
       fightRankingsByFightId,
-      lootEvents,
+      lootEvents: [],
     }),
   }
 }

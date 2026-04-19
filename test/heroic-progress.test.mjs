@@ -118,7 +118,7 @@ test('heroic progress aggregates mains only and applies ceil(50%) threshold', as
     assert.equal(res.body.mainCount, 3)
     assert.equal(res.body.killThreshold, 2)
     assert.equal(res.body.progressedBossCount, 2)
-    assert.equal(res.body.missingBossCount, 7)
+    assert.equal(res.body.missingBossCount, 6)
     assert.deepEqual(
       res.body.raids.map((raid) => ({
         name: raid.name,
@@ -126,9 +126,9 @@ test('heroic progress aggregates mains only and applies ceil(50%) threshold', as
         missingBossCount: raid.missingBossCount,
       })),
       [
-        { name: 'The Voidspire', progressedBossCount: 2, missingBossCount: 4 },
-        { name: 'The Dreamrift', progressedBossCount: 0, missingBossCount: 1 },
-        { name: "March on Quel'Danas", progressedBossCount: 0, missingBossCount: 2 },
+        { name: 'The Voidspire', progressedBossCount: 2, missingBossCount: 3 },
+        { name: 'The Dreamrift', progressedBossCount: 0, missingBossCount: 2 },
+        { name: "March on Quel'Danas", progressedBossCount: 0, missingBossCount: 1 },
       ],
     )
 
@@ -141,14 +141,21 @@ test('heroic progress aggregates mains only and applies ceil(50%) threshold', as
       requiredKills: 2,
     })
     assert.deepEqual(voidspireBosses[1], {
+      name: 'Fallen-King Salhadaar',
+      killCount: 0,
+      killers: [],
+      progressed: false,
+      requiredKills: 2,
+    })
+    assert.deepEqual(voidspireBosses[3], {
       name: 'Vorasius',
       killCount: 2,
       killers: ['Hilfa', 'Mufuzu'],
       progressed: true,
       requiredKills: 2,
     })
-    assert.deepEqual(voidspireBosses[2], {
-      name: 'Fallen-King Salhadaar',
+    assert.deepEqual(voidspireBosses[4], {
+      name: 'Vaelgor & Ezzorak',
       killCount: 0,
       killers: [],
       progressed: false,
